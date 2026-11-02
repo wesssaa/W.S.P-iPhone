@@ -10,6 +10,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         _ = Checker.monitor // wifi of 4G/5G bijhouden
         Background.register()
         Background.schedule()
+        // net als Android 13+: bij het opstarten om toestemming voor meldingen vragen (iOS vraagt dat maar één keer)
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in Background.refreshAllowed() }
         let w = UIWindow(frame: UIScreen.main.bounds)
         w.rootViewController = WebViewController()
         w.makeKeyAndVisible()

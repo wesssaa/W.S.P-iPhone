@@ -37,7 +37,8 @@ enum Background {
     /* toestemming voor meldingen bijhouden, voor het instellingenscherm in de app */
     static func refreshAllowed() {
         UNUserNotificationCenter.current().getNotificationSettings { s in
-            Prefs.set("notif_allowed", s.authorizationStatus == .authorized || s.authorizationStatus == .provisional)
+            // nog niet gevraagd telt niet als "uit": de app vraagt het bij het opstarten (zoals op Android)
+            Prefs.set("notif_allowed", s.authorizationStatus != .denied)
         }
     }
 }

@@ -3763,7 +3763,7 @@
           <button class="linkbtn" data-a="ownadd" style="border-bottom:0;padding-bottom:0">+ Zet reminder</button>
         </div>
         ${ns ? `<div class="card-box"><div class="setting-h">Meldingen</div>
-          ${ns.allowed ? '' : '<div class="err" style="margin-bottom:8px">Meldingen staan uit in de Android-instellingen voor deze app.</div>'}
+          ${ns.allowed ? '' : `<div class="err" style="margin-bottom:8px">${IOS ? 'Meldingen staan uit voor Ichthus+. Zet ze aan bij Instellingen → Ichthus+ → Berichtgeving.' : 'Meldingen staan uit in de Android-instellingen voor deze app.'}</div>`}
           <button class="setrow" data-a="remind"><span class="sr-t"><b>Herinneringen instellen</b><small>Standaard: ${esc(ruleLabel(hwRules.def))}</small></span><span class="go">›</span></button>
           ${modeRow('hw', 'Huiswerk', 'Nieuw huiswerk en nieuwe aantekeningen', ns.n_hw_mode)}
           ${modeRow('rooster', 'Rooster', zm ? 'Uitval en lokaalwijzigingen (Zermelo)' : 'Koppel Zermelo voor betrouwbare uitval', ns.n_rooster_mode)}
