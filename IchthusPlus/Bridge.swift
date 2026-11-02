@@ -46,7 +46,7 @@ final class Bridge {
             let ms = Double(s(0)) ?? 10
             DispatchQueue.main.async { UIImpactFeedbackGenerator(style: ms > 30 ? .medium : .light).impactOccurred() }
         case "open":
-            if let u = URL(string: s(0)), ["http", "https", "mailto", "tel"].contains(u.scheme?.lowercased() ?? "") {
+            if let u = URL(string: s(0)), ["http", "https", "mailto", "tel", "shortcuts"].contains(u.scheme?.lowercased() ?? "") {
                 DispatchQueue.main.async { UIApplication.shared.open(u) }
             }
         case "logout":

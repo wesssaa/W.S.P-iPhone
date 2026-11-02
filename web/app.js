@@ -2732,22 +2732,35 @@
     const days = Math.floor((ms - Date.now()) / 864e5), d = new Date(ms);
     return (days < 1 ? 'Verloopt vandaag' : days === 1 ? 'Nog 1 dag' : 'Nog ' + days + ' dagen') + ' geldig (tot ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ')';
   };
-  function sideStoreSheet() {
-    const m = document.createElement('div');
-    m.className = 'modal';
-    m.innerHTML = `<div class="sheet"><h3>Automatisch vernieuwen</h3>
-      <p class="small" style="color:var(--fg2)">Met een gratis Apple ID werkt Ichthus+ 7 dagen. Daarna moet SideStore hem vernieuwen. ${esc(expiryText())}.</p>
+  const refreshSteps = () => `<p class="small" style="color:var(--fg2)"><span class="tag">VERPLICHT</span> Met een gratis Apple ID werkt Ichthus+ 7 dagen. Daarna moet SideStore hem vernieuwen, anders opent hij niet meer. ${esc(expiryText())}.</p>
       <p class="small" style="color:var(--fg2)">Laat het 's nachts vanzelf gebeuren met de app <b>Opdrachten</b>:</p>
       <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
         <li>Open <b>Opdrachten</b> → <b>Automatisering</b> → <b>+</b> → <b>Tijdstip</b>.</li>
-        <li>Kies <b>00:02</b>, herhaal <b>Wekelijks</b> en vink twee dagen aan (bijv. <b>maandag</b> en <b>donderdag</b>). Kies <b>Voer direct uit</b>.</li>
+        <li>Kies <b>02:00</b>, herhaal <b>Wekelijks</b> en vink twee dagen aan (bijv. <b>maandag</b> en <b>donderdag</b>). Kies <b>Voer direct uit</b>.</li>
         <li><b>Nieuwe lege opdracht</b>, en voeg toe: <b>Stel VPN in</b> → <b>LocalDevVPN</b> → <b>Verbind</b>.</li>
         <li><b>Wacht</b> → 3 seconden.</li>
         <li>Zoek <b>SideStore</b> en kies <b>Refresh All Apps</b>.</li>
         <li><b>Stel VPN in</b> → <b>LocalDevVPN</b> → <b>Verbreek</b>.</li></ol>
-      <p class="small muted">SideStore doet het op de achtergrond; iOS legt hem daarna vanzelf weer stil, je hoeft niks af te sluiten. LocalDevVPN mag ook altijd aan blijven (hij werkt alleen binnen je telefoon en kost bijna geen batterij); dan kun je stap 3 en 6 overslaan. Je telefoon moet om 00:02 wel aan staan en internet hebben.</p>
-      <button class="btn ghost" data-a="close">Sluiten</button></div>`;
+      <p class="small muted">SideStore doet het op de achtergrond; iOS legt hem daarna vanzelf weer stil, je hoeft niks af te sluiten. LocalDevVPN mag ook altijd aan blijven (hij werkt alleen binnen je telefoon en kost bijna geen batterij); dan kun je stap 3 en 6 overslaan. Je telefoon moet om 02:00 wel aan staan en internet hebben.</p>`;
+  const openShortcuts = () => { try { Native.open('shortcuts://'); } catch (e) {} };
+  function sideStoreSheet() {
+    const m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = `<div class="sheet"><h3>Automatisch vernieuwen</h3>${refreshSteps()}
+      <button class="btn" data-a="sc">Opdrachten openen</button><button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
+    m.querySelector('[data-a=sc]').onclick = openShortcuts;
+    app.appendChild(m);
+  }
+  /* eerste keer op iPhone (in plaats van de batterij-stap van Android): verplicht, eerst lezen en instellen */
+  function askRefreshStep() {
+    const m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = `<div class="sheet"><h3>Automatisch vernieuwen</h3>${refreshSteps()}
+      <p class="small muted">Je kunt dit later teruglezen bij Meer → Automatisch vernieuwen.</p>
+      <div class="row"><button class="btn ghost" data-a="sc">Opdrachten openen</button><button class="btn" data-a="done" style="flex:1">Ik heb het ingesteld</button></div></div>`;
+    m.querySelector('[data-a=sc]').onclick = openShortcuts;
+    readFirst(m.querySelector('[data-a=done]'), () => { ls.set('cp:refreshAsked', 1); m.remove(); askWidgetStep(); }, 8);
     app.appendChild(m);
   }
   /* widget "volgende les": de app vraagt Android hem neer te zetten, anders uitleg hoe je hem zelf toevoegt */
@@ -2886,6 +2899,7 @@
   }
   /* eerste keer, na de update-instelling: batterijbesparing uit voor Ichthus+, eerst uitleggen wat je moet doen */
   function askBatteryStep() {
+    if (IOS) return ls.get('cp:refreshAsked', 0) ? askWidgetStep() : askRefreshStep();
     const ok = () => { try { return Native.batteryOk(); } catch (e) { return true; } };
     const xiaomi = (() => { try { return !!(Native.isXiaomi && Native.isXiaomi()); } catch (e) { return false; } })();
     if (ls.get('cp:batteryAsked', 0) || !(Native && Native.batteryOk && Native.askBattery)) return askWidgetStep();
@@ -3106,8 +3120,10 @@
     meldingen: ['Meldingen', 'Kies per soort of je een melding met <b>geluid</b>, <b>trillen</b>, <b>stil</b> of helemaal niet wilt. Komt er niks binnen? Tik onderaan op "Melding op je scherm laten zien".'],
     hwremind: ['Huiswerkherinneringen', 'Kies wanneer je een seintje krijgt voordat huiswerk af moet zijn. <b>Standaard</b> geldt voor alles, per vak kun je het anders instellen. Afgevinkt huiswerk krijgt geen herinnering meer.'],
     themes: ['Thema', 'Kies <b>Wit</b> of <b>Zwart</b> en een accentkleur. Met het regenboogrondje kies je zelf een kleur. Onderaan kies je het icoontje op je startscherm.'],
-    data: ['Datagebruik', 'Hier kies je hoe vaak de app kijkt op <b>wifi</b> en op <b>4G/5G</b>, en wat er op 4G/5G mag. Je ziet ook een schatting van je dataverbruik, zodat je bundel niet opgaat.']
+    data: ['Datagebruik', 'Hier kies je hoe vaak de app kijkt op <b>wifi</b> en op <b>4G/5G</b>, en wat er op 4G/5G mag. Je ziet ook een schatting van je dataverbruik, zodat je bundel niet opgaat.'],
+    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> Ichthus+ werkt 7 dagen, daarna moet SideStore hem vernieuwen. Laat dat \'s nachts vanzelf gebeuren met <b>Opdrachten</b>; hier staat hoe, en hoeveel dagen hij nog werkt. Zonder dit opent Ichthus+ na 7 dagen niet meer.']
   };
+  if (IOS) TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
   const tipSeen = k => !!(ls.get('cp:tips', {}) || {})[k];
   /* toont de uitleg als die nog niet gezien is; zit er iets anders in de weg (een venster), dan later nog eens proberen */
   /* over: de uitleg hoort bij het venster dat net open ging, dus daar overheen tonen */
@@ -3143,7 +3159,9 @@
     ['ownrem', 'meer', () => { const b = main.querySelector('[data-a=ownadd]'); return b && b.closest('.card-box'); }],
     ['meldingen', 'meer', () => { const b = main.querySelector('[data-mode]'); return b && b.closest('.card-box'); }],
     ['themes', 'meer', () => main.querySelector('[data-a=themes]')],
-    ['data', 'meer', () => main.querySelector('[data-a=data]')]
+    ['data', 'meer', () => main.querySelector('[data-a=data]')],
+    /* iPhone: zonder vernieuwen werkt de app na 7 dagen niet meer */
+    ...(IOS ? [['sidestore', 'meer', () => main.querySelector('[data-a=sidestore]')]] : [])
   ];
   const tourDone = () => !!ls.get('cp:tourDone', 0);
   /* nieuw account (nog niks geopend) en nog geen rondleiding gehad: starten zodra er niks anders open staat */
@@ -3583,7 +3601,7 @@
       <button class="linkbtn" data-a="devoff" style="border-bottom:0">Ontwikkelaar sluiten</button></div>`;
   }
   /* "nieuwe gebruiker": de eerste-keer-instellingen tijdelijk wissen (met een reservekopie) en de app opnieuw starten */
-  const SIM_KEYS = ['cp:terms', 'cp:termsDate', 'cp:iconPicked', 'cp:themePicked', 'cp:zmAsked', 'cijferpacks:v1', 'cp:hwdone', 'cp:tabs', 'cp:tips', 'cp:tourDone', 'cp:installAsked', 'cp:batteryAsked', 'cp:firstUpd', 'cp:widgetAsked'];
+  const SIM_KEYS = ['cp:terms', 'cp:termsDate', 'cp:iconPicked', 'cp:themePicked', 'cp:zmAsked', 'cijferpacks:v1', 'cp:hwdone', 'cp:tabs', 'cp:tips', 'cp:tourDone', 'cp:installAsked', 'cp:batteryAsked', 'cp:refreshAsked', 'cp:firstUpd', 'cp:widgetAsked'];
   function simNewUser() {
     const backup = {};
     SIM_KEYS.forEach(k => { try { backup[k] = localStorage.getItem(k); localStorage.removeItem(k); } catch (e) {} });

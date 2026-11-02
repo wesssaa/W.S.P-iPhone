@@ -70,3 +70,51 @@ jobs:
               news: [] }' > source.json
           gh release create "$GITHUB_REF_NAME" IchthusPlus.ipa source.json --title "Ichthus+ iPhone $V" \
             --notes "Installeren via SideStore: My Apps, plus, kies IchthusPlus.ipa. Of voeg de bron toe in SideStore (Sources)."
+
+  # zonder iPhone testen: de app in de iPhone-simulator van de Mac starten en schermafbeeldingen maken.
+  # Ook een simulator-build (IchthusPlus-simulator.zip) om te uploaden naar appetize.io, dan bedien je hem in je browser.
+  # Kost extra Mac-minuten, dus alleen met de hand (Actions → Build → Run workflow) of met [sim] in de commit.
+  simulator:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[sim]')
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode-project maken
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Bouwen voor de simulator
+        run: |
+          xcodebuild -project IchthusPlus.xcodeproj -target IchthusPlus -configuration Debug -sdk iphonesimulator \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build > sim.log 2>&1 \
+            || { grep -E "error:" sim.log | sort -u; tail -n 60 sim.log; exit 1; }
+          cd build/Debug-iphonesimulator && zip -qry ../../IchthusPlus-simulator.zip IchthusPlus.app
+
+      - name: Starten en schermafbeeldingen maken
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | test("^iPhone 1[5-9]( Pro)?$"))][0].udid')
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build/Debug-iphonesimulator/IchthusPlus.app
+          mkdir -p shots
+          xcrun simctl launch "$UDID" nl.cijferpacks.app
+          sleep 8;  xcrun simctl io "$UDID" screenshot shots/1-opstart.png
+          sleep 20; xcrun simctl io "$UDID" screenshot shots/2-na-30s.png
+          # widget-test: de app is nu gestart; het beginscherm laten zien
+          xcrun simctl ui "$UDID" appearance dark
+          sleep 3;  xcrun simctl io "$UDID" screenshot shots/3-donker.png
+          xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "IchthusPlus"' --style compact | tail -n 80 > shots/log.txt || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshots
+          path: shots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IchthusPlus-simulator
+          path: IchthusPlus-simulator.zip
