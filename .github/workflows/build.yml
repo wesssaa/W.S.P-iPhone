@@ -84,12 +84,14 @@ jobs:
       - name: Xcode-project maken
         run: |
           brew install xcodegen
+          # demo met voorbeeldgegevens erbij (alleen in deze build), zodat je zonder in te loggen kunt testen
+          cp demo/demo.html web/demo.html
           xcodegen generate
 
       - name: Bouwen voor de simulator
         run: |
           xcodebuild -project IchthusPlus.xcodeproj -target IchthusPlus -configuration Debug -sdk iphonesimulator \
-            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build > sim.log 2>&1 \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -D DEMO' build > sim.log 2>&1 \
             || { grep -E "error:" sim.log | sort -u; tail -n 60 sim.log; exit 1; }
           cd build/Debug-iphonesimulator && zip -qry ../../IchthusPlus-simulator.zip IchthusPlus.app
 

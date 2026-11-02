@@ -64,6 +64,13 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     /* al eens ingelogd: meteen de app in een lege pagina op het adres van het portaal (zelfde cookies en opslag).
        Is de sessie verlopen, dan laadt de app zelf het echte portaal. */
     func start() {
+        #if DEMO
+        // alleen de simulator-build (Appetize): voorbeeldgegevens in plaats van het portaal, zonder in te loggen
+        if let u = Bundle.main.resourceURL?.appendingPathComponent("web/demo.html"), let html = try? String(contentsOf: u, encoding: .utf8) {
+            web.loadHTMLString(html, baseURL: Self.shellURL)
+            return
+        }
+        #endif
         WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
             let loggedIn = cookies.contains { Self.portalHost.hasSuffix($0.domain.trimmingCharacters(in: CharacterSet(charactersIn: "."))) }
             DispatchQueue.main.async {

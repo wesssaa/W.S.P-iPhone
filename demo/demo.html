@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ichthus+ preview</title>
+<style>html, body { margin: 0; background: #000; }</style>
+</head>
+<body>
+<script>
+/* ?nu=2026-11-02T09:10 : de preview doen alsof het dat tijdstip is (om bijvoorbeeld de les van nu te testen) */
+(function () {
+  const q = new URLSearchParams(location.search).get('nu');
+  if (!q) return;
+  const off = new Date(q).getTime() - Date.now(), real = Date.now.bind(Date);
+  Date.now = () => real() + off;
+})();
+/* Voorbeelddata voor de preview: verzonnen cijfers, huiswerk en rooster, niet van het portaal. */
+(function () {
+  const subj = [
+    ['gd', 'Godsdienst'], ['ne', 'Nederlandse taal'], ['en', 'Engelse taal'], ['gs', 'Geschiedenis'], ['ak', 'Aardrijkskunde'],
+    ['wi', 'Wiskunde'], ['na', 'Natuurkunde'], ['sk', 'Scheikunde'], ['bi', 'Biologie'], ['ec', 'Economie'], ['du', 'Duitse taal']
+  ];
+  const G = [
+    ['wi', '5.1', 'Hfst. 2: Verbanden', 2, 'Repetitie'], ['en', '6.4', 'Vocabulary unit 2', 1, 'Schriftelijke overhoring'],
+    ['sk', '7.4', 'Hoofdstuk 1 Scheikunde is overal', 2, 'Repetitie'], ['bi', '7.2', 'Cellen', 1, 'Schriftelijke overhoring'],
+    ['gs', '8.0', 'De Eerste Wereldoorlog', 1, 'Praktische opdracht'], ['ec', '7.8', 'Vraag en aanbod', 1, 'Schriftelijke overhoring'],
+    ['gd', '8.6', 'so Hfst 1', 1, 'Schriftelijke overhoring'], ['ak', '6.5', 'Klimaat', 1, 'Schriftelijke overhoring'],
+    ['na', '9.6', 'Krachten', 2, 'Repetitie'], ['ne', 'V', 'Toets werkwoordspelling', 0, 'Schriftelijke overhoring'],
+    ['wi', '6.3', 'Hfst. 3: Lineaire formules', 1, 'Schriftelijke overhoring'], ['wi', '6.9', 'Hfst. 4: Grafieken', 2, 'Repetitie'], ['en', '5.2', 'Grammar unit 3', 1, 'Schriftelijke overhoring']
+  ];
+  const grades = G.map((g, i) => ({
+    vak: subj.find(s => s[0] === g[0])[1], afk: g[0], p: '1', kind: 'toets', val: g[1], num: parseFloat(g[1]) || null,
+    oms: g[2], code: '1-t' + i, soort: g[4], weging: String(g[3]), datum: (10 + i) + '-10-2026', herk: 'Geen', id: 'demo' + i
+  }));
+  const subjects = subj.map(([afk, name]) => {
+    const own = grades.filter(g => g.afk === afk && g.num != null && +g.weging > 0);
+    const W = own.reduce((a, g) => a + +g.weging, 0), S = own.reduce((a, g) => a + g.num * +g.weging, 0);
+    return { afk, name, periods: { '1': { gem: W ? (S / W).toFixed(1) : null, rapport: W ? String(Math.round(S / W)) : null, items: own.map(g => ({ v: g.num, w: +g.weging })) }, '2': { items: [] }, '3': { items: [] } } };
+  });
+  const day = (mon, n) => { const d = new Date(mon); d.setDate(d.getDate() + n); return d; };
+  const nl = d => ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'][d.getDay()] + ' ' + d.getDate() + ' ' + ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'][d.getMonth()];
+  let settings = { n_grades_mode: 'geluid', n_hw_mode: 'trillen', n_rooster_mode: 'geluid', n_remind_mode: 'geluid', n_showgrade: false, allowed: true, n_wifi_mode: '30', n_mob_r_mode: '150', n_mob_c_mode: '150', n_mob_h_mode: 'off' };
+  window.__cpDemo = {
+    grades: { year: '2026 - 2027', student: 'Voorbeeld Leerling', periods: ['1', '2', '3'], current: '1', last: '3', subjects, grades },
+    agenda: [{ s: new Date(2026, 10, 4, 8).getTime(), e: new Date(2026, 10, 4, 16).getTime(), t: 'Dankdag (leerlingen vrij)' },
+      { s: new Date(2026, 11, 19, 0).getTime(), e: new Date(2027, 0, 4, 0).getTime(), t: 'Kerstvakantie' }],
+    docenten: { t: Date.now(), vakken: {}, list: {
+      stn: { name: 'J. Steen', mail: 'stn@voorbeeld.nl', vakken: ['Wiskunde'] }, dan: { name: 'M. Daniëls', mail: 'dan@voorbeeld.nl', vakken: ['Nederlands', 'Mentorles'] },
+      kaa: { name: 'P. de Kaap', mail: 'kaa@voorbeeld.nl', vakken: ['Scheikunde'] }, hol: { name: 'S. Holm', mail: 'hol@voorbeeld.nl', vakken: ['Engels'] },
+      weh: { name: 'R. Wehman', mail: 'weh@voorbeeld.nl', vakken: ['Geschiedenis'] }, vdk: { name: 'L. van Dijk', mail: 'vdk@voorbeeld.nl', vakken: ['Economie'] } } },
+    absence: { totals: [{ label: 'Aanwezig', value: '198 lesuren' }, { label: 'Te laat, geoorloofd', value: '1 lesuur' }], items: [] },
+    homework: mon => [
+      { vak: 'wi', onderwerp: 'Repetitie hoofdstuk 3', d: 1, huiswerk: 'Leren: §3.1 t/m 3.4, oefentoets maken', toets: true, uur: '2', docent: 'Stn' },
+      { vak: 'en', onderwerp: 'Unit 3', d: 1, huiswerk: 'Opdracht 4 t/m 9 maken', toets: false, uur: '', docent: '' },
+      { vak: 'gs', onderwerp: 'Repetitie hoofdstuk 1', d: 3, huiswerk: 'Leren: paragraaf 1.2 t/m 1.5\nBegrippenlijst + aantekeningen', toets: true, uur: '3', docent: 'Weh' },
+      { vak: 'ne', onderwerp: 'Toets spelling', d: 3, huiswerk: 'Spelling §1 t/m 7 leren', toets: true, uur: '3', docent: 'Dan' }
+    ].map(h => { const d = day(mon, h.d); return Object.assign({}, h, { date: d.getTime(), datum: nl(d) + ' ' + d.getFullYear(), gemaakt: false, id: h.vak + '|' + nl(d) + '|' + h.onderwerp }); }),
+    rooster: mon => {
+      const L = [
+        ['08:00 - 08:50', '1', 'wi', 'a274', 'Stn'], ['08:50 - 09:35', '2', 'ne', 'a132', 'Dan'], ['09:35 - 10:20', '3', 'sk', 'a248', 'Kaa'],
+        ['10:40 - 11:25', '4', 'en', 'b112', 'Hol'], ['11:25 - 12:20', '5', 'gs', 'b177', 'Weh'], ['13:25 - 14:10', '7', 'ec', 'a024', 'Vdk']
+      ];
+      return [0, 1, 2, 3, 4].map(n => ({
+        date: day(mon, n).getTime(),
+        lessons: n === 2 ? [] : L.filter((_, i) => (i + n) % 5 !== 4).map((l, i) => ({
+          /* donderdag: verkort rooster (de verkorte lestijden van school, lessen van 35 minuten) */
+          tijd: n === 3 ? ['08:00 - 08:35', '08:35 - 09:10', '09:10 - 09:45', '09:45 - 10:20', '10:35 - 11:10', '11:45 - 12:20'][L.indexOf(l)] : l[0], uur: l[1], vak: l[2], lokaal: n === 1 && i === 1 ? 'b065' : l[3], docent: l[4], groep: 'h3b.' + l[2],
+          uitval: n === 0 && i === 2, wijziging: n === 0 && i === 2 ? 'Docent afwezig' : n === 1 && i === 1 ? 'Ander lokaal' : '',
+          lokaalAnders: n === 1 && i === 1, wasLokaal: n === 1 && i === 1 ? l[3] : '', opmerking: '', type: 'lesson'
+        }))
+      }));
+    },
+    native: {
+      setRoosterCache: (j, a) => { window.__widget = { lessons: JSON.parse(j), accent: a }; },
+      getSettings: () => JSON.stringify(settings),
+      setSetting: (k, v) => { settings[k] = k.endsWith('_mode') ? v : v === 'true'; },
+      testNotify: () => alert('Testmelding (in de app komt dit als echte melding binnen)'),
+      canInstall: () => localStorage.getItem('demoNoInstall') !== '1', openInstallSettings: () => {},
+      /* updates nadoen: localStorage demoVer = "jouw" versie, demoLatest = de nieuwste op GitHub */
+      appVersion: () => localStorage.getItem('demoVer') || '',
+      installUpdate: () => { let p = 0; const t = setInterval(() => { p += 25; window.__cpUpd && window.__cpUpd(p >= 100 ? 'ask' : 'busy', Math.min(p, 100)); if (p >= 100) clearInterval(t); }, 200); },
+      fetchRelease: () => setTimeout(() => { const v = localStorage.getItem('demoLatest') || '0'; window.__cpRel(JSON.stringify({ tag_name: 'v' + v, body: '- Voorbeeld ' + v, assets: [{ name: 'Ichthus+.apk', size: 590000, browser_download_url: 'https://github.com/wesssaa/Ichthus-Plus/releases/download/v' + v + '/Ichthus%2B.apk' }] })); }, 300), batteryOk: () => !!window.__batOk, askBattery: () => { setTimeout(() => { window.__batOk = true; }, 1500); }, openAppInfo: () => {}, isXiaomi: () => true,
+      setZermelo: () => {}, setTheme: () => {}, vibrate: () => {}, open: () => {}, logout: () => {}, relogin: () => {}
+    }
+  };
+  /* ?ios: de iPhone-app nadoen, met alleen wat de brug daar heeft (geen batterij-stap; updates gaan via SideStore) */
+  if (/[?&]ios\b/.test(location.search)) {
+    window.__cpPlatform = 'ios';
+    const n = window.__cpDemo.native, ios = {};
+    ['vibrate', 'open', 'logout', 'relogin', 'setTheme', 'setZermelo', 'getSettings', 'setSetting', 'testNotify', 'setRoosterCache'].forEach(k => { ios[k] = n[k]; });
+    Object.assign(ios, {
+      getIcon: () => localStorage.getItem('demoIosIcon') || 'zwartkaal', setIcon: k => localStorage.setItem('demoIosIcon', k.toLowerCase()),
+      appVersion: () => localStorage.getItem('demoVer') || '0.2.0',
+      fetchRelease: () => setTimeout(() => { const v = localStorage.getItem('demoLatest') || '0'; window.__cpRel(JSON.stringify({ tag_name: 'v' + v, body: '- Voorbeeld ' + v, assets: [{ name: 'IchthusPlus.ipa', size: 1213078, browser_download_url: 'https://github.com/wesssaa/Ichthus-Plus-iPhone/releases/download/v' + v + '/IchthusPlus.ipa' }] })); }, 300),
+      installUpdate: () => setTimeout(() => window.__cpUpd && window.__cpUpd('sidestore', 0), 400),
+      signExpiry: () => Date.now() + 4.4 * 864e5,
+      getOwnReminders: () => localStorage.getItem('demoIosRem') || '[]', setOwnReminders: j => localStorage.setItem('demoIosRem', j), setRemOwner: () => false
+    });
+    window.__cpDemo.native = ios;
+  }
+})();
+</script>
+
+</body>
+</html>
