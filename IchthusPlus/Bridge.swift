@@ -5,12 +5,12 @@ import WebKit
  window.CijferApp voor app.js, net als de JavascriptInterface op Android. Android geeft meteen een antwoord terug
  (bijv. getZermelo()); WKWebView kan dat alleen via prompt(): de app vangt die op en geeft het antwoord als tekst terug.
  Alleen wat de iPhone-app echt kan staat erin: app.js kijkt zelf of een functie bestaat (geen updates via de app,
- geen batterij-instelling, nog geen widget en meldingen).
+ geen batterij-instelling, nog geen widget en meldingen over cijfers).
  */
 final class Bridge {
     static let marker = "__cijferapp__"
     static let methods = ["vibrate", "open", "logout", "relogin", "setTheme", "getZermelo", "setZermelo", "zermeloSso",
-                          "getAgenda", "appVersion", "getIcon", "setIcon"]
+                          "getAgenda", "appVersion", "getIcon", "setIcon", "getOwnReminders", "setOwnReminders", "setRemOwner"]
 
     static let shimJS = """
     (function () {
@@ -76,6 +76,13 @@ final class Bridge {
         case "setIcon":
             let name = s(0)
             DispatchQueue.main.async { Icons.set(name) }
+        case "getOwnReminders":
+            Reminders.advance()
+            return encode(Prefs.string("own_rem", "[]"))
+        case "setOwnReminders":
+            Reminders.setOwn(s(0))
+        case "setRemOwner":
+            return encode(Reminders.setOwner(s(0)))
         default:
             break
         }
@@ -89,6 +96,7 @@ final class Bridge {
     /* alles van deze leerling weg: Zermelo-koppeling en de inlog (cookies). Thema en icoon blijven staan. */
     private func logout() {
         Prefs.clearAccount()
+        Reminders.logoutOwner()
         let store = WKWebsiteDataStore.default()
         store.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
             let zermelo = records.filter { $0.displayName.contains("zportal.nl") }
