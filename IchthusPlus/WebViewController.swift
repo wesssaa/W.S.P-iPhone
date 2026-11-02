@@ -12,6 +12,9 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     var zermelo: ZermeloLogin?
     private var currentURL: URL?
     private var bottom: NSLayoutConstraint!
+    private var started = false // de pagina pas laden als je de app echt opent, niet bij een achtergrondcontrole
+    private var ready = false // app.js draait
+    private var pendingTab: String? // op een melding of de widget getikt voordat de app klaar was
 
     override var preferredStatusBarStyle: UIStatusBarStyle { Prefs.theme == "dark" ? .lightContent : .darkContent }
 
@@ -64,12 +67,26 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         edge.edges = .left
         view.addGestureRecognizer(edge)
 
+        // gestart door iOS voor een achtergrondcontrole: nog niks laden (dat kost tijd en zou meldingen "wegkijken")
+        if UIApplication.shared.applicationState != .background { startIfNeeded() }
+    }
+
+    func startIfNeeded() {
+        if started || web == nil { return }
+        started = true
         start()
+    }
+
+    /* naar een tabblad: meteen als de app al draait, anders zodra hij klaar is */
+    func openTab(_ tab: String) {
+        let t = tab.filter { $0.isLetter && $0.isLowercase }
+        if ready { js("window.__cpApp && window.__cpApp.go('\(t)')") } else { pendingTab = t }
     }
 
     /* al eens ingelogd: meteen de app in een lege pagina op het adres van het portaal (zelfde cookies en opslag).
        Is de sessie verlopen, dan laadt de app zelf het echte portaal. */
     func start() {
+        ready = false
         #if DEMO
         // alleen de simulator-build (Appetize): voorbeeldgegevens in plaats van het portaal, zonder in te loggen
         if let u = Bundle.main.resourceURL?.appendingPathComponent("web/demo.html"), let html = try? String(contentsOf: u, encoding: .utf8) {
@@ -118,8 +135,11 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
           document.documentElement.style.webkitTouchCallout = 'none';
           window.__cpAssets = \(map);
           if (location.pathname.indexOf('/portaal/ichthusplus') === 0) window.__cpShell = true;
+          // ook als app.js bij het starten een fout geeft: de app laten zien, niet op het visje blijven hangen
+          try {
           \(js)
-          ;try { window.webkit.messageHandlers.cpReady.postMessage(1); } catch (e) {}
+          } catch (e) { console.error(e); }
+          try { window.webkit.messageHandlers.cpReady.postMessage(1); } catch (e) {}
         }
         """
     }
@@ -129,8 +149,16 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
         if message.name == "cpRetry" { web.alpha = 0; start(); return }
         guard message.name == "cpReady", Self.isPortal(message.frameInfo.request.url ?? web.url) || web.url == Self.shellURL else { return }
-        // wat je in de app al ziet, hoeft later geen melding meer te geven; meteen ook de sessie vasthouden
-        Task.detached { try? await Checker.runAll(notify: false) }
+        ready = true
+        if let t = pendingTab { pendingTab = nil; js("window.__cpApp ? window.__cpApp.go('\(t)') : (window.__cpStartTab='\(t)')") }
+        // eerst de inlog vasthouden (ook als je de app meteen weer sluit), dan wat je al ziet onthouden,
+        // zodat dat later geen melding meer geeft. Niet als iOS ons op de achtergrond draait: dat doet Background zelf.
+        if UIApplication.shared.applicationState != .background {
+            Task.detached {
+                await Portal.persistCookies()
+                try? await Checker.runAll(notify: false)
+            }
+        }
         NSLog("Ichthus+ opstarttijd: %d ms tot de app klaar is", Int(Date().timeIntervalSince(AppDelegate.launched) * 1000))
         // zacht overvloeien van het opstartscherm naar de app
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {

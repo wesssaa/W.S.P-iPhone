@@ -19,11 +19,14 @@ enum HomeworkReminders {
 
     /* huiswerk bewaren (van de achtergrondcontrole of de app); oude items vallen weg */
     static func mergeItems(_ list: [[String: Any]]) {
-        var all = items()
-        for it in list { if let id = it["id"] as? String, num(it["date"]) > 0 { all[id] = it } }
-        let cutoff = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000 - 86400_000
-        all = all.filter { num($0.value["date"]) >= cutoff }
-        Prefs.set("hw_items", all.jsonString)
+        // via de wachtrij: de app en de achtergrondcontrole kunnen tegelijk huiswerk toevoegen
+        NotifQueue.q.sync {
+            var all = items()
+            for it in list { if let id = it["id"] as? String, num(it["date"]) > 0 { all[id] = it } }
+            let cutoff = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970 * 1000 - 86400_000
+            all = all.filter { num($0.value["date"]) >= cutoff }
+            Prefs.set("hw_items", all.jsonString)
+        }
         schedule()
     }
 
@@ -61,10 +64,12 @@ enum HomeworkReminders {
 
     /* de komende herinneringen inplannen; die op hetzelfde moment worden één melding (zoals op Android) */
     static func schedule() {
-        let c = UNUserNotificationCenter.current()
-        c.getPendingNotificationRequests { pending in
-            c.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
-            guard Checker.on("remind") else { return }
+        NotifQueue.q.async {
+            let c = UNUserNotificationCenter.current()
+            // precies de meldingen weghalen die we zelf de vorige keer hebben ingepland
+            c.removePendingNotificationRequests(withIdentifiers: Prefs.d.stringArray(forKey: "hw_ids") ?? [])
+            guard Checker.on("remind") else { return Prefs.set("hw_ids", [String]()) }
+            var ids: [String] = []
             let groups = Dictionary(grouping: compute(from: Date().timeIntervalSince1970 * 1000), by: \.at).sorted { $0.key < $1.key }
             for (at, due) in groups.prefix(maxPending) {
                 let content = UNMutableNotificationContent()
@@ -78,8 +83,10 @@ enum HomeworkReminders {
                 content.userInfo = ["tab": "huiswerk"]
                 if Checker.mode("remind") == "stil" { content.interruptionLevel = .passive } else { content.sound = .default }
                 let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: Date(timeIntervalSince1970: at / 1000))
+                ids.append("\(prefix)\(Int(at))")
                 c.add(UNNotificationRequest(identifier: "\(prefix)\(Int(at))", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
             }
+            Prefs.set("hw_ids", ids)
         }
     }
 

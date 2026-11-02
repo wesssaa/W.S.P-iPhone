@@ -59,19 +59,22 @@ enum Checker {
 
     // MARK: - alles
 
-    /* types: r = rooster, c = cijfers, h = huiswerk. Gooit een fout als er geen verbinding was. */
-    static func runAll(notify: Bool, types: String = "rch") async throws {
+    /* types: r = rooster, c = cijfers, h = huiswerk. Gooit een fout als er geen verbinding was.
+       agenda: ook de jaaragenda verversen (niet op de achtergrond: daar is de tijd krap) */
+    static func runAll(notify: Bool, types: String = "rch", agenda: Bool = true) async throws {
         let p = await Portal.open()
         var first: Error?
         do {
             if types.contains("c") { do { try await checkGrades(p, notify: notify && on("grades")) } catch let e where !(e is LoggedOut) { first = e } }
+            try Task.checkCancellation()
             if types.contains("h") { do { try await checkHomework(p, notify: notify && on("hw")) } catch let e where !(e is LoggedOut) { first = first ?? e } }
+            try Task.checkCancellation()
             if types.contains("r") { do { try await checkRooster(p, notify: notify && on("rooster")) } catch let e where !(e is LoggedOut) { first = first ?? e } }
         } catch is LoggedOut {
             return // de app vraagt zelf om opnieuw in te loggen
         }
-        await withCheckedContinuation { k in Agenda.refresh { _ in k.resume() } }
         await Portal.persistCookies()
+        if agenda && !Task.isCancelled { await withCheckedContinuation { k in Agenda.refresh { _ in k.resume() } } }
         if let e = first { throw e }
         let now = Date().timeIntervalSince1970
         for t in types { Prefs.set("last_\(t)", now) }

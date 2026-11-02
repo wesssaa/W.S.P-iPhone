@@ -27,11 +27,21 @@ enum Background {
         schedule() // meteen de volgende keer aanvragen
         let anyOn = ["grades", "hw", "rooster"].contains { Checker.on($0) }
         guard anyOn, let types = Checker.plan() else { return task.setTaskCompleted(success: true) }
-        let work = Task {
-            do { try await Checker.runAll(notify: true, types: types); task.setTaskCompleted(success: true) }
-            catch { task.setTaskCompleted(success: false) }
+        // precies één keer "klaar" melden: na de controle, of meteen als iOS de tijd om vindt (anders sluit iOS de app
+        // en krijgt hij daarna minder vaak een beurt)
+        let lock = NSLock()
+        var done = false
+        let finish = { (ok: Bool) in
+            lock.lock(); defer { lock.unlock() }
+            if done { return }
+            done = true
+            task.setTaskCompleted(success: ok)
         }
-        task.expirationHandler = { work.cancel() }
+        let work = Task {
+            do { try await Checker.runAll(notify: true, types: types, agenda: false); finish(true) }
+            catch { finish(false) }
+        }
+        task.expirationHandler = { work.cancel(); finish(false) }
     }
 
     /* toestemming voor meldingen bijhouden, voor het instellingenscherm in de app */

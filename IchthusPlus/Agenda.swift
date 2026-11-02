@@ -4,15 +4,18 @@ import Foundation
 enum Agenda {
     static let ics = URL(string: "https://calendar.google.com/calendar/ical/ob7hr8d0ttha3uduhk6rsa11u2k347q0%40import.calendar.google.com/public/basic.ics")!
     private static var busy = false
+    private static let lock = NSLock() // busy wordt vanaf verschillende threads gezet en gewist
 
     static func refresh(force: Bool = false, done: @escaping (Bool) -> Void) {
         let last = Prefs.d.double(forKey: "agenda_t")
-        if busy || (!force && Date().timeIntervalSince1970 - last < 12 * 3600) { return done(false) }
+        lock.lock()
+        if busy || (!force && Date().timeIntervalSince1970 - last < 12 * 3600) { lock.unlock(); return done(false) }
         busy = true
+        lock.unlock()
         var req = URLRequest(url: ics)
         req.timeoutInterval = 30
         URLSession.shared.dataTask(with: req) { data, resp, _ in
-            defer { busy = false }
+            defer { lock.lock(); busy = false; lock.unlock() }
             guard (resp as? HTTPURLResponse)?.statusCode == 200, let data = data, var text = String(data: data, encoding: .utf8) else { return done(false) }
             text = text.replacingOccurrences(of: "\r\n ", with: "").replacingOccurrences(of: "\n ", with: "")
             let now = Date().timeIntervalSince1970 * 1000

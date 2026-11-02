@@ -986,7 +986,9 @@
   .chip small { font: 600 10px var(--f-mono); opacity: .75; margin-left: 4px; }
   /* cijfer in gewone tekstkleur (wit of zwart) op een rustig grijs vakje */
   .chip.gc, .badge.gc { color: var(--fg); background: var(--surface2); box-shadow: inset 0 0 0 1px var(--line); }
-  .hdate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hdate { display: flex; white-space: nowrap; overflow: hidden; }
+  .hdate .hg { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .hdate .hdd { flex-shrink: 0; }
   .chip.locked { position: relative; overflow: hidden; background: color-mix(in srgb, var(--accent) 16%, var(--surface2)); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
   .chip.locked .blur { filter: blur(5px); user-select: none; }
   .chip.locked::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
@@ -1566,8 +1568,9 @@
     const first = S.grades && S.grades.student ? S.grades.student.trim().split(/\s+/)[0] : '';
     const h = d.getHours(), groet = h < 6 ? 'Goedenacht' : h < 12 ? 'Goedemorgen' : h < 18 ? 'Goedemiddag' : 'Goedenavond';
     const k = klas();
-    sh.querySelector('.hdate').textContent = first ? groet + ', ' + first + (k ? ' · ' + k : '') + ' · ' + DAYS_SHORT[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()].slice(0, 3)
-      : DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()];
+    /* klas en datum altijd laten zien: past het niet, dan wordt de groet met je naam ingekort (met …) */
+    sh.querySelector('.hdate').innerHTML = first ? `<span class="hg">${esc(groet + ', ' + first)}</span><span class="hdd">&nbsp;· ${esc((k ? k + ' · ' : '') + DAYS_SHORT[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()].slice(0, 3))}</span>`
+      : `<span class="hg">${esc(DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()])}</span>`;
   }
   /* je klas (bijv. H3B): de groep die het vaakst bij je lessen staat (bij vakken als "h3b.ne2" telt het stuk voor de punt) */
   function klas() {
@@ -3118,7 +3121,7 @@
     hwremind: ['Huiswerkherinneringen', 'Kies wanneer je een seintje krijgt voordat huiswerk af moet zijn. <b>Standaard</b> geldt voor alles, per vak kun je het anders instellen. Afgevinkt huiswerk krijgt geen herinnering meer.'],
     themes: ['Thema', 'Kies <b>Wit</b> of <b>Zwart</b> en een accentkleur. Met het regenboogrondje kies je zelf een kleur. Onderaan kies je het icoontje op je startscherm.'],
     data: ['Datagebruik', 'Hier kies je hoe vaak de app kijkt op <b>wifi</b> en op <b>4G/5G</b>, en wat er op 4G/5G mag. Je ziet ook een schatting van je dataverbruik, zodat je bundel niet opgaat.'],
-    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> Ichthus+ werkt 7 dagen, daarna moet SideStore hem vernieuwen. Laat dat \'s nachts vanzelf gebeuren met <b>Opdrachten</b>; hier staat hoe, en hoeveel dagen hij nog werkt. Zonder dit opent Ichthus+ na 7 dagen niet meer.']
+    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> Ichthus+ werkt 7 dagen, daarna moet SideStore hem vernieuwen, anders opent hij niet meer. Laat LocalDevVPN aan staan en stel in <b>Opdrachten</b> één keer in:<br><b>1. Automatisering → + → Tijdstip</b><br><b>2. 02:00, Wekelijks, twee dagen aanvinken → Voer direct uit</b><br><b>3. SideStore → Refresh All Apps → Gereed</b><br>Hier zie je ook hoeveel dagen hij nog werkt.']
   };
   if (IOS) TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
   const tipSeen = k => !!(ls.get('cp:tips', {}) || {})[k];

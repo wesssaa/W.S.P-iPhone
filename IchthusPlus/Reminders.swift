@@ -7,9 +7,14 @@ import UserNotifications
  (iOS onthoudt er hooguit 64 per app). Bij elke keer openen schuiven we de lijst door en plannen opnieuw.
  Lijst: [{id, text, at (ms), rep: none|daily|days|weekly, n, fired}]
  */
+/* één wachtrij voor alles wat meldingen inplant of de huiswerklijst bijwerkt */
+enum NotifQueue {
+    static let q = DispatchQueue(label: "nl.cijferpacks.app.notif")
+}
+
 enum Reminders {
     static let prefix = "own-"
-    static let maxPending = 60
+    static let maxPending = 40 // + 20 huiswerkherinneringen = 60, onder iOS' maximum van 64
 
     static func list() -> [[String: Any]] {
         guard let d = Prefs.string("own_rem", "[]").data(using: .utf8),
@@ -58,35 +63,52 @@ enum Reminders {
         return (Calendar.current.date(byAdding: .day, value: days, to: d) ?? d.addingTimeInterval(Double(days) * 86400)).timeIntervalSince1970 * 1000
     }
 
-    /* alle komende keren inplannen, de eerstvolgende eerst, tot iOS' maximum */
+    /*
+     Alle komende keren inplannen, de eerstvolgende eerst. Elke dag of elke week wordt één herhalende melding;
+     om de zoveel dagen/weken plannen we de komende keren los in. Samen met de huiswerkherinneringen blijft het
+     onder iOS' maximum van 64. Alles via één wachtrij, zodat twee keer plannen elkaar niet in de weg zit.
+     */
     static func schedule() {
-        let c = UNUserNotificationCenter.current()
-        c.getPendingNotificationRequests { pending in
-            c.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
+        NotifQueue.q.async {
+            let c = UNUserNotificationCenter.current()
+            c.removePendingNotificationRequests(withIdentifiers: Prefs.d.stringArray(forKey: "own_ids") ?? [])
+            let mode = Checker.mode("own")
+            guard mode != "uit" else { return Prefs.set("own_ids", [String]()) }
             let now = Date().timeIntervalSince1970 * 1000
-            var due: [(at: Double, r: [String: Any])] = []
+            var requests: [(at: Double, r: [String: Any], trigger: UNNotificationTrigger)] = []
             for r in list() where r["fired"] as? Bool != true {
                 var at = num(r["at"])
-                let once = (r["rep"] as? String ?? "none") == "none"
+                let rep = r["rep"] as? String ?? "none", n = max(1, Int(num(r["n"], 1)))
+                let d = Date(timeIntervalSince1970: at / 1000)
+                if rep == "daily" || (rep == "days" && n == 1) {
+                    requests.append((at, r, UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.hour, .minute], from: d), repeats: true)))
+                    continue
+                }
+                if rep == "weekly" && n == 1 {
+                    requests.append((at, r, UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.weekday, .hour, .minute], from: d), repeats: true)))
+                    continue
+                }
                 var k = 0
                 while k < maxPending && at < now + 120 * 86400_000 {
-                    if at > now { due.append((at, r)) }
-                    if once { break }
+                    if at > now { requests.append((at, r, UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSince1970: at / 1000)), repeats: false))) }
+                    if rep == "none" { break }
                     at = step(at, r)
                     k += 1
                 }
             }
-            due.sort { $0.at < $1.at }
-            for (i, d) in due.prefix(maxPending).enumerated() {
+            requests.sort { $0.at < $1.at }
+            var ids: [String] = []
+            for (i, x) in requests.prefix(maxPending).enumerated() {
                 let content = UNMutableNotificationContent()
                 content.title = "Reminder"
-                content.body = d.r["text"] as? String ?? "Reminder"
-                content.sound = .default
+                content.body = x.r["text"] as? String ?? "Reminder"
+                if mode == "stil" { content.interruptionLevel = .passive } else { content.sound = .default }
                 content.userInfo = ["tab": "rooster"]
-                let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSince1970: d.at / 1000))
-                let id = "\(prefix)\(d.r["id"] as? String ?? "x")-\(i)"
-                c.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+                let id = "\(prefix)\(x.r["id"] as? String ?? "x")-\(i)"
+                ids.append(id)
+                c.add(UNNotificationRequest(identifier: id, content: content, trigger: x.trigger))
             }
+            Prefs.set("own_ids", ids)
         }
     }
 

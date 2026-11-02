@@ -135,6 +135,7 @@ final class Bridge {
     private func logout() {
         Prefs.clearAccount()
         Reminders.logoutOwner()
+        HomeworkReminders.schedule() // het huiswerk van deze leerling is weg, dus ook de herinneringen ervan
         WidgetData.clear()
         let store = WKWebsiteDataStore.default()
         store.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in

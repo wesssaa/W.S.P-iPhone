@@ -5,6 +5,7 @@ import UserNotifications
 final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var window: UIWindow?
     static let launched = Date() // om de opstarttijd te meten (staat in het logboek)
+    private var controller: WebViewController? { window?.rootViewController as? WebViewController }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         _ = Self.launched
@@ -13,7 +14,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         Background.register()
         Background.schedule()
         // net als Android 13+: bij het opstarten om toestemming voor meldingen vragen (iOS vraagt dat maar één keer)
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in Background.refreshAllowed() }
+        if application.applicationState != .background {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in Background.refreshAllowed() }
+        }
         let w = UIWindow(frame: UIScreen.main.bounds)
         w.rootViewController = WebViewController()
         w.makeKeyAndVisible()
@@ -21,19 +24,29 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         return true
     }
 
-    /* bij elke keer openen: wat geweest is doorschuiven en de komende reminders opnieuw inplannen */
+    /* bij elke keer openen: de app laden (als dat nog niet gebeurd is), wat geweest is doorschuiven en reminders opnieuw inplannen */
     func applicationDidBecomeActive(_ application: UIApplication) {
+        controller?.startIfNeeded()
         Reminders.advance()
         Reminders.schedule()
         HomeworkReminders.schedule()
         Background.refreshAllowed()
     }
 
+    /* naar de achtergrond: de inlog vasthouden (zoals Android de cookies bij onPause wegschrijft) */
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        var id = UIBackgroundTaskIdentifier.invalid
+        id = application.beginBackgroundTask { application.endBackgroundTask(id) }
+        Task {
+            await Portal.persistCookies()
+            application.endBackgroundTask(id)
+        }
+    }
+
     /* op de widget tikken: ichthusplus://rooster */
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         guard url.scheme == "ichthusplus" else { return false }
-        let tab = (url.host ?? "rooster").filter { $0.isLetter && $0.isLowercase }
-        (window?.rootViewController as? WebViewController)?.js("window.__cpApp ? window.__cpApp.go('\(tab)') : (window.__cpStartTab='\(tab)')")
+        controller?.openTab(url.host ?? "rooster")
         return true
     }
 
@@ -43,10 +56,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         done([.banner, .list, .sound])
     }
 
-    /* op een melding tikken: meteen het goede tabblad */
+    /* op een melding tikken: meteen het goede tabblad (ook als de app nog moet opstarten) */
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler done: @escaping () -> Void) {
-        let tab = (response.notification.request.content.userInfo["tab"] as? String ?? "rooster").filter { $0.isLetter && $0.isLowercase }
-        (window?.rootViewController as? WebViewController)?.js("window.__cpApp ? window.__cpApp.go('\(tab)') : (window.__cpStartTab='\(tab)')")
+        controller?.openTab(response.notification.request.content.userInfo["tab"] as? String ?? "rooster")
         done()
     }
 }

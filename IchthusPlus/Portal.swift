@@ -9,29 +9,26 @@ struct HTTPError: Error { let code: Int }
  Doorverwijzingen volgen we zelf, zodat een verlopen sessie stil via Microsoft ("aangemeld blijven") wordt vernieuwd;
  nieuwe cookies gaan terug naar de WebView, zodat die ook ingelogd blijft.
  */
-final class Portal: NSObject, URLSessionTaskDelegate {
+final class Portal {
     static let base = "https://\(WebViewController.portalHost)"
     private var cookies: [HTTPCookie] = []
     /* WebKit mag alleen op de hoofdthread: de cookieopslag daar opvragen, nooit op de achtergrond */
     @MainActor static func cookieStore() -> WKHTTPCookieStore { WKWebsiteDataStore.default().httpCookieStore }
-    private lazy var session: URLSession = {
+    /* één sessie voor alle controles (een sessie per keer bleef anders in het geheugen hangen); cookies doen we zelf */
+    private static let session: URLSession = {
         let c = URLSessionConfiguration.ephemeral
         c.httpCookieStorage = nil
         c.httpShouldSetCookies = false
         c.timeoutIntervalForRequest = 20
         c.waitsForConnectivity = false
-        return URLSession(configuration: c, delegate: self, delegateQueue: nil)
+        return URLSession(configuration: c, delegate: NoRedirect(), delegateQueue: nil)
     }()
+    private var session: URLSession { Self.session }
 
     static func open() async -> Portal {
         let p = Portal()
         p.cookies = await cookieStore().allCookies()
         return p
-    }
-
-    /* zelf doorverwijzen */
-    func urlSession(_ s: URLSession, task: URLSessionTask, willPerformHTTPRedirection r: HTTPURLResponse, newRequest: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
-        completionHandler(nil)
     }
 
     func get(_ url: String, marker: String?) async throws -> String {
@@ -104,6 +101,13 @@ final class Portal: NSObject, URLSessionTaskDelegate {
             p.removeValue(forKey: .discard)
             if let n = HTTPCookie(properties: p) { await cookieStore().setCookie(n) }
         }
+    }
+}
+
+/* doorverwijzingen niet volgen: dat doen we zelf, met de cookies erbij */
+final class NoRedirect: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ s: URLSession, task: URLSessionTask, willPerformHTTPRedirection r: HTTPURLResponse, newRequest: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
     }
 }
 
