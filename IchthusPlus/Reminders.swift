@@ -80,11 +80,13 @@ enum Reminders {
                 var at = num(r["at"])
                 let rep = r["rep"] as? String ?? "none", n = max(1, Int(num(r["n"], 1)))
                 let d = Date(timeIntervalSince1970: at / 1000)
-                if rep == "daily" || (rep == "days" && n == 1) {
+                // een herhalende melding gaat meteen bij de eerstvolgende keer af; daarom pas gebruiken als de eerste keer
+                // binnen één periode valt (anders zou "elke dag vanaf maandag" morgen al afgaan) en de keren daarvoor los
+                if (rep == "daily" || (rep == "days" && n == 1)) && at - now <= 86400_000 {
                     requests.append((at, r, UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.hour, .minute], from: d), repeats: true)))
                     continue
                 }
-                if rep == "weekly" && n == 1 {
+                if rep == "weekly" && n == 1 && at - now <= 7 * 86400_000 {
                     requests.append((at, r, UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.weekday, .hour, .minute], from: d), repeats: true)))
                     continue
                 }

@@ -92,7 +92,7 @@
     Object.assign(ios, {
       getIcon: () => localStorage.getItem('demoIosIcon') || 'zwartkaal', setIcon: k => localStorage.setItem('demoIosIcon', k.toLowerCase()),
       appVersion: () => localStorage.getItem('demoVer') || '0.2.0',
-      fetchRelease: () => setTimeout(() => { const v = localStorage.getItem('demoLatest') || '0'; window.__cpRel(JSON.stringify({ tag_name: 'v' + v, body: '- Voorbeeld ' + v, assets: [{ name: 'IchthusPlus.ipa', size: 1213078, browser_download_url: 'https://github.com/wesssaa/Ichthus-Plus-iPhone/releases/download/v' + v + '/IchthusPlus.ipa' }] })); }, 300),
+      fetchRelease: () => setTimeout(() => { const v = localStorage.getItem('demoLatest') || '0'; window.__cpRel(JSON.stringify({ tag_name: 'v' + v, body: '- Voorbeeld ' + v, assets: [{ name: 'WSP.ipa', size: 1213078, browser_download_url: 'https://github.com/wesssaa/W.S.P-iPhone/releases/download/v' + v + '/WSP.ipa' }] })); }, 300),
       installUpdate: () => setTimeout(() => window.__cpUpd && window.__cpUpd('sidestore', 0), 400),
       signExpiry: () => Date.now() + 4.4 * 864e5,
       getOwnReminders: () => localStorage.getItem('demoIosRem') || '[]', setOwnReminders: j => localStorage.setItem('demoIosRem', j), setRemOwner: () => false

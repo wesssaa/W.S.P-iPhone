@@ -1,10 +1,10 @@
-# Zet de map iphone\ als één commit op GitHub (wesssaa/Ichthus-Plus-iPhone), zonder git: via de GitHub-API.
+# Zet de map iphone\ als één commit op GitHub (wesssaa/W.S.P-iPhone), zonder git: via de GitHub-API.
 # De repo wordt precies gelijk aan deze map (wat hier weg is, verdwijnt ook daar). Daarna bouwt GitHub Actions de .ipa.
 # Gebruik:  .\iphone\push.ps1 -Message "Wat er veranderd is"   (met -Tag v0.1.0 ook een release)
 param(
   [string]$Message = 'Bijgewerkt',
   [string]$Tag = '',
-  [string]$Repo = 'wesssaa/Ichthus-Plus-iPhone'
+  [string]$Repo = 'wesssaa/W.S.P-iPhone'
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path $PSScriptRoot).Path

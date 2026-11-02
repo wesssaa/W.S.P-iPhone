@@ -6,8 +6,8 @@ import UIKit
  Zolang de iPhone-repo privé is, vindt hij niets (dan blijft het vakje gewoon weg).
  */
 final class Updates: NSObject, URLSessionTaskDelegate {
-    static let repo = "wesssaa/Ichthus-Plus-iPhone"
-    static let asset = "IchthusPlus.ipa"
+    static let repo = "wesssaa/W.S.P-iPhone"
+    static let asset = "WSP.ipa"
     private static let shared = Updates()
     private lazy var session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
 

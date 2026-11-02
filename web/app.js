@@ -1489,7 +1489,7 @@
     const draw = () => {
       const e = dataEstimate(st, opens);
       p.innerHTML = `<div class="panel-h"><h2>Datagebruik</h2><button class="btn" data-a="done">Klaar</button></div>
-        <p class="small muted">Hoe vaak W.S.P op de achtergrond naar nieuwe cijfers, huiswerk en roosterwijzigingen kijkt. 's Nachts (23:00–06:00) kijkt hij niet. Als je de app opent of op vernieuwen tikt, haalt hij altijd alles op.</p>
+        <p class="small muted">Hoe vaak W.S.P op de achtergrond naar nieuwe cijfers, huiswerk en roosterwijzigingen kijkt. 's Nachts (23:00–06:00) kijkt hij niet. Als je de app opent of op vernieuwen tikt, haalt hij altijd alles op.${IOS ? ' Op iPhone bepaalt iOS zelf wanneer de app mag kijken (meestal een paar keer per dag): wat je hier kiest is hoe vaak hij hooguit kijkt, de schatting is dus het maximum.' : ''}</p>
         <div class="seg">${[['wifi', 'Wifi'], ['mobile', '4G/5G']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab2="${k}">${l}</button>`).join('')}</div>
         ${tab === 'wifi' ? `<div class="card-box"><div class="setting-h">Op wifi kijken</div>
             ${opt('wifi', [['30', 'Elk half uur'], ['60', 'Elk uur'], ['120', 'Elke 2 uur']])}
@@ -2482,7 +2482,7 @@
     m.innerHTML = `<div class="sheet"><h3>Verkorte lestijden</h3>
       <p class="small muted">Lessen van 35 minuten, bijvoorbeeld tijdens rapportvergaderingen. Pauze van 10.20 tot 10.35.</p>
       <table class="lt"><tr><th></th><th>Verkort</th><th>Gewoon</th></tr>${LESTIJDEN.verkort.map((_, i) => row(i)).join('')}</table>
-      <p class="small muted">Bron: ichthuscollege.nl → Lestijden en vakanties. De app volgt de tijden uit je rooster.</p>
+      <p class="small muted">Bron: de website van school → Lestijden en vakanties. De app volgt de tijden uit je rooster.</p>
       <button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
     app.appendChild(m);
@@ -2722,6 +2722,9 @@
   /* W.S.P-munt op zwart of wit (de oude varianten "met tekst" zijn nu hetzelfde als zwart en wit) */
   const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit']];
   const curIcon = () => { try { return Native && Native.getIcon ? Native.getIcon() : ls.get('cp:icon', 'zwartkaal'); } catch (e) { return 'zwartkaal'; } };
+  /* voor de keuze: de oude varianten "met tekst" zien er nu uit als zwart of wit (niet echt wisselen: dan kan het
+     icoon op sommige telefoons even van je startscherm verdwijnen) */
+  const shownIcon = () => { const c = curIcon(); return c === 'zwart' ? 'zwartkaal' : c === 'default' ? 'kaal' : c; };
   const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET('icon-' + (k === 'default' ? 'wit' : k) + '.png')}" alt=""><span>${l}</span></button>`).join('')}</div>`;
   function setIcon(k) {
     ls.set('cp:icon', k);
@@ -2770,7 +2773,7 @@
     m.className = 'modal';
     m.innerHTML = `<div class="sheet"><h3>Zien wat je hierna hebt</h3>
       <div data-wsize></div>
-      <p class="small muted">Een widget op je startscherm met je les van nu of je volgende les, het lokaal en of er uitval is, in drie maten. Tik erop en je ziet je rooster.</p>
+      <p class="small muted">Een widget op je ${IOS ? 'beginscherm of toegangsscherm' : 'startscherm'} met je les van nu of je volgende les, het lokaal en of er uitval is, ${IOS ? 'klein, middel of op je toegangsscherm' : 'in drie maten'}. Tik erop en je ziet je rooster.</p>
       <div class="ws-help" hidden><p class="small"><b>Zelf toevoegen:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
       <button class="btn" data-a="pin">Op startscherm zetten</button><button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
@@ -2993,8 +2996,8 @@
     const m = document.createElement('div');
     m.className = 'modal';
     const draw = () => {
-      m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat W.S.P op je startscherm. Later aanpassen kan bij Meer → Thema.</p>
-        ${iconGrid(ls.get('cp:icon', 'zwartkaal'))}<button class="btn" data-a="ok">Klaar</button></div>`;
+      m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat W.S.P op je ${IOS ? 'beginscherm' : 'startscherm'}. Later aanpassen kan bij Meer → Thema.</p>
+        ${iconGrid((v => v === 'zwart' ? 'zwartkaal' : v === 'default' ? 'kaal' : v)(ls.get('cp:icon', 'zwartkaal')))}<button class="btn" data-a="ok">Klaar</button></div>`;
       m.querySelectorAll('[data-icon]').forEach(b => { b.onclick = () => { ls.set('cp:icon', b.dataset.icon); draw(); }; });
       m.querySelector('[data-a=ok]').onclick = () => { setIcon(ls.get('cp:icon', 'zwartkaal')); ls.set('cp:iconPicked', 1); m.remove(); askInstall(); };
     };
@@ -3011,8 +3014,8 @@
           <div class="lbl" style="margin:14px 0 10px">Accentkleur</div>
           <div class="swatches">${SWATCHES.map(c => `<button class="sw${c === accent ? ' on' : ''}" style="--c:${c}" data-c="${c}" aria-label="Kleur ${c}"></button>`).join('')}
             <label class="sw custom${SWATCHES.indexOf(accent) < 0 ? ' on' : ''}" aria-label="Eigen kleur"><input type="color" id="accent-pick" value="${accent}"></label></div></div>
-        <div class="card-box"><div class="setting-h">App-icoon</div>${iconGrid(curIcon())}
-          <p class="small muted" style="margin-top:8px">Na het wisselen kan het icoon op je startscherm even verdwijnen en terugkomen.</p></div>`;
+        <div class="card-box"><div class="setting-h">App-icoon</div>${iconGrid(shownIcon())}
+          <p class="small muted" style="margin-top:8px">${IOS ? 'Bij het wisselen laat iOS even een melding zien dat het icoon is veranderd.' : 'Na het wisselen kan het icoon op je startscherm even verdwijnen en terugkomen.'}</p></div>`;
       p.querySelector('[data-a=done]').onclick = close;
       p.querySelectorAll('[data-icon]').forEach(b => { b.onclick = () => { setIcon(b.dataset.icon); draw(); }; });
       p.querySelectorAll('[data-theme]').forEach(b => { b.onclick = () => { theme = b.dataset.theme; ls.set('cp:theme', theme); applyLook(); draw(); }; });
@@ -3028,22 +3031,23 @@
     tip('themes', () => p.isConnected);
   }
   /* ---------- voorwaarden: bij de eerste start akkoord geven ---------- */
-  const TERMS_VERSION = 3; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account */
+  const TERMS_VERSION = 4; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account; 4: nieuwe naam W.S.P, inlogpagina zonder schoollogo, iPhone */
   function showTerms(viewOnly) {
     const el = document.createElement('div');
     el.className = 'terms';
     el.innerHTML = `<div class="logos"><img src="${ASSET('mark.png')}" alt="W.S.P"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
       <h2>${viewOnly ? 'Voorwaarden en privacy' : 'Voordat je begint'}</h2>
       <ul>
-        <li><b>Onofficiële app.</b> W.S.P is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens het Ichthus College of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
-        <li><b>Namen en logo's.</b> De naam van het Ichthus College en de naam en het logo van Zermelo zijn van hun eigenaren. Ze staan in de app alleen om te laten zien waar de gegevens vandaan komen. Als de school of Zermelo dat niet wil, worden ze weggehaald.</li>
-        <li><b>Inloggen</b> gaat via de gewone inlog van school (Microsoft) en Zermelo. De app ziet en bewaart je wachtwoord niet. Om je ingelogd te houden bewaart hij alleen de inlogcookies van het portaal (tot 30 dagen, bij elk gebruik verlengd) en de Zermelo-sleutel, in de afgeschermde opslag van de app op je telefoon. Andere apps kunnen daar niet bij. Uitloggen wist ze.</li>
+        <li><b>Onofficiële app.</b> W.S.P is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens je school of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
+        <li><b>Namen en logo's.</b> De naam van je school en de naam en het logo van Zermelo zijn van hun eigenaren. Ze staan in de app alleen om te laten zien waar de gegevens vandaan komen. Als de school of Zermelo dat niet wil, worden ze weggehaald.</li>
+        <li><b>Inloggen</b> gaat via de gewone inlog van school (Microsoft) en Zermelo. De app ziet en bewaart je wachtwoord niet. Om je ingelogd te houden bewaart hij alleen de inlogcookies van het portaal (tot 30 dagen, bij elk gebruik verlengd) en de Zermelo-sleutel, in de afgeschermde opslag van de app op je telefoon. Andere apps kunnen daar niet bij. Uitloggen wist ze. Op de inlogpagina verbergt de app alleen het logo van school en zet hij een algemene voorbeeldtekst in het e-mailveld; wat je typt, leest hij niet.</li>
+        ${IOS ? `<li><b>Installeren op iPhone</b> gaat met SideStore en je eigen Apple ID. Met een gratis Apple ID werkt de app 7 dagen per keer; SideStore vernieuwt hem (zie Meer → Automatisch vernieuwen). W.S.P staat niet in de App Store en is niet door Apple gecontroleerd.</li>` : ''}
         <li><b>Je gegevens</b> (cijfers, rooster, huiswerk, absentie, je reminders en huiswerk dat je zelf toevoegt) worden alleen op deze telefoon bewaard en nergens anders heen gestuurd.</li>
         <li><b>Rooster van iemand anders.</b> Staat je school het in Zermelo toe, dan kun je met een leerlingnummer het rooster van een medeleerling bekijken. De app laat alleen zien wat Zermelo jou ook laat zien, en bewaart het niet. Gebruik het netjes.</li>
         <li><b>Op de achtergrond</b> kijkt de app in het leerlingportaal en Zermelo of er nieuwe cijfers, huiswerk of roosterwijzigingen zijn: ${IOS ? "zo vaak als iOS dat toestaat (meestal een paar keer per dag), hooguit zoals je instelt, en 's nachts niet" : "op wifi standaard elk half uur, op 4G/5G standaard elke 2,5 uur (alleen rooster en cijfers), elke schooldag een uur voor je eerste les, en 's nachts niet"}. Je stelt dit zelf in bij Meer → Datagebruik. Het gaat met je eigen inlog en alleen voor de meldingen die je aan hebt staan.</li>
         <li><b>Uitloggen</b> haalt je inlog en de Zermelo-koppeling weg. Welke cijfers je al hebt geopend, je afgevinkte huiswerk en je reminders blijven op deze telefoon bewaard onder jouw account, zodat ze terugkomen als je weer inlogt. Iemand anders die hier inlogt, ziet ze niet.</li>
-        <li><b>Updates.</b> De app staat op GitHub. W.S.P kijkt daar als je de app opent op wifi of er een nieuwe versie is, en downloadt die daar als je op Bijwerken tikt. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. De toestemming om apps te installeren wordt alleen gebruikt voor updates van W.S.P zelf.</li>
-        <li><b>Foutmeldingen.</b> Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh), met de app-versie en je telefoonmodel. Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>
+        <li><b>Updates.</b> De app staat op GitHub. W.S.P kijkt daar als je de app opent op wifi of er een nieuwe versie is. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. ${IOS ? 'Bijwerken gaat via SideStore: de app opent SideStore met de nieuwe versie.' : 'De app downloadt de nieuwe versie daar als je op Bijwerken tikt. De toestemming om apps te installeren wordt alleen gebruikt voor updates van W.S.P zelf.'}</li>
+        ${IOS ? '' : `<li><b>Foutmeldingen.</b> Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh), met de app-versie en je telefoonmodel. Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>`}
         <li><b>Cookies en opslag.</b> De app gebruikt de cookies van het leerlingportaal en Zermelo om je ingelogd te houden, en lokale opslag voor je instellingen en reminders. De lettertypes zitten in de app zelf, daarvoor wordt niets van internet geladen. Er zijn geen advertenties en er wordt niets bijgehouden.</li>
         <li><b>Geen garantie.</b> De app kan fouten bevatten of verouderde informatie tonen. Controleer belangrijke dingen, zoals cijfers, toetsen en roosterwijzigingen, altijd in het leerlingportaal of Zermelo.</li>
         <li><b>Gebruik</b> is op eigen risico. Houd je aan de regels van school voor het gebruik van het portaal en Zermelo.</li>
@@ -3449,10 +3453,17 @@
       if (finished) return;
       /* iPhone: SideStore neemt het over; daarna mag je verder (de update komt binnen als SideStore klaar is) */
       if (st === 'sidestore' || st === 'browser') {
+        /* niet vanzelf opnieuw SideStore openen als je terugkomt (anders blijf je heen en weer springen):
+           zelf kiezen tussen nog eens proberen en verder met deze versie */
         started = false;
+        handedOff = true;
         msg(st === 'sidestore' ? 'Tik in SideStore op Installeren en open W.S.P daarna weer.' : 'SideStore niet gevonden: de download staat in Safari.');
         const box = m.querySelector('[data-stuck]');
-        if (box) { box.innerHTML = '<div class="row"><button class="btn ghost" data-a="on" style="flex:1">Verder met deze versie</button></div>'; box.querySelector('[data-a=on]').onclick = go; }
+        if (box) {
+          box.innerHTML = '<div class="row"><button class="btn ghost" data-a="on" style="flex:1">Verder met deze versie</button><button class="btn" data-a="again" style="flex:1">Opnieuw</button></div>';
+          box.querySelector('[data-a=on]').onclick = go;
+          box.querySelector('[data-a=again]').onclick = () => { started = false; start(); };
+        }
       }
       else if (st === 'busy') msg('Downloaden… ' + pct + '%');
       /* het venster van Android kan wegvallen zonder antwoord (bijv. met de thuisknop): dan toch een uitweg */
@@ -3461,8 +3472,9 @@
       else { started = false; draw(); choices(st === 'cancel' ? 'Bijwerken geannuleerd.' : 'Bijwerken mislukt. Controleer je internet.'); }
     };
     window.__cpUpd = onUpd;
+    let handedOff = false; /* iPhone: al naar SideStore gestuurd */
     back = () => {
-      if (document.hidden || finished) return;
+      if (document.hidden || finished || handedOff) return;
       if (!started && can()) start();
       else if (tries >= 2 && !started) stuckLink(m, go);
     };
@@ -3749,7 +3761,7 @@
       <input type="checkbox" data-n="${key}"${on ? ' checked' : ''}><i class="toggle"></i></label>`;
     /* per soort melding: geluid, trillen, stil of helemaal uit */
     const modeRow = (type, title, sub, mode) => `<div class="nrow"><b>${title}</b>${sub ? `<div class="small muted">${sub}</div>` : ''}
-      <div class="modes">${[['geluid', 'Geluid'], ...(IOS ? [] : [['trillen', 'Trillen']]), ['stil', 'Stil'], ['uit', 'Uit']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-mode="${type}:${k}">${l}</button>`).join('')}</div></div>`;
+      <div class="modes">${[['geluid', 'Geluid'], ...(IOS ? [] : [['trillen', 'Trillen']]), ['stil', 'Stil'], ['uit', 'Uit']].map(([k, l]) => `<button class="${(IOS && mode === 'trillen' ? 'geluid' : mode) === k ? 'on' : ''}" data-mode="${type}:${k}">${l}</button>`).join('')}</div></div>`;
     const draw = () => {
       let ns = null;
       try { ns = Native && Native.getSettings ? JSON.parse(Native.getSettings()) : null; } catch (e) {}
@@ -3772,7 +3784,7 @@
           ${modeRow('own', 'Eigen reminders', 'Reminders die je zelf zet bij Meer', ns.n_own_mode || 'geluid')}
           ${modeRow('grades', 'Nieuwe cijfers', '', ns.n_grades_mode)}
           ${toggle('n_showgrade', 'Cijfer laten zien in melding', 'Uit: alleen het vak, het cijfer zie je bij het unboxen', ns.n_showgrade)}
-          ${Native && Native.openNotifSettings ? `<button class="setrow" data-a="nsys" style="padding-top:10px;border-bottom:0"><span class="sr-t"><b>Melding op je scherm laten zien</b><small>Xiaomi/Redmi: zet "Zwevende meldingen" en "Vergrendelscherm" aan voor W.S.P</small></span><span class="go">›</span></button>` : ''}
+          ${Native && Native.openNotifSettings ? `<button class="setrow" data-a="nsys" style="padding-top:10px;border-bottom:0"><span class="sr-t"><b>Melding op je scherm laten zien</b><small>${IOS ? 'In Instellingen → W.S.P → Berichtgeving: zet Toegangsscherm en Banners aan' : 'Xiaomi/Redmi: zet "Zwevende meldingen" en "Vergrendelscherm" aan voor W.S.P'}</small></span><span class="go">›</span></button>` : ''}
         </div>` : ''}
         <div class="card-box"><div class="setting-h">Zermelo</div>
           ${zm ? `<div class="listrow"><span class="muted">Gekoppeld met</span><b>${esc(zm.school)}${zm.sso ? ' · schoolaccount' : ''}</b></div><button class="linkbtn red" data-a="zmoff" style="border-bottom:0">Ontkoppelen</button>`
@@ -3803,7 +3815,7 @@
         </div>
         <div class="card-box"><div class="setting-h">Over W.S.P</div>
           <div class="logos"><img src="${ASSET('mark.png')}" alt="W.S.P"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
-          <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens het Ichthus College of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
+          <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens je school of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
           ${canUpdate() ? `<button class="linkbtn" data-a="upd">Zoek naar updates <span class="muted" style="font-weight:500">· je hebt versie ${esc(appVer())}</span></button>` : ''}
           <button class="linkbtn" data-a="terms" style="border-bottom:0;padding-bottom:0">Voorwaarden en privacy bekijken</button>
         </div>

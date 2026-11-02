@@ -35,6 +35,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         let uc = cfg.userContentController
         uc.addUserScript(WKUserScript(source: Bridge.shimJS, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         uc.addUserScript(WKUserScript(source: Self.appScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        uc.addUserScript(WKUserScript(source: Self.loginCSS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         uc.add(WeakHandler(self), name: "cpReady")
         uc.add(WeakHandler(self), name: "cpRetry")
 
@@ -106,7 +107,28 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         }
     }
 
-    func loadStart() { web.load(URLRequest(url: Self.startURL)) }
+    func loadStart() { ready = false; web.load(URLRequest(url: Self.startURL)) }
+
+    /* inlogpagina van Microsoft: het logo van school niet tonen, en een algemene voorbeeldtekst in het e-mailveld.
+       De app leest niks uit de velden, dus ziet je e-mailadres en wachtwoord niet (zoals hideLoginLogo op Android) */
+    static let loginCSS = """
+    (function () {
+      var h = location.hostname;
+      if (!/(^|\\.)(login\\.microsoftonline\\.com|login\\.microsoft\\.com|login\\.live\\.com)$/.test(h) || document.getElementById('wsp-hide')) return;
+      var s = document.createElement('style');
+      s.id = 'wsp-hide';
+      s.textContent = 'img.logo,.logo img,#bannerLogo,.banner-logo,img[data-bind*="bannerLogo"]{display:none!important}'
+        + '.background-image,.backgroundImage,.background-image-holder{background-image:none!important}';
+      (document.head || document.documentElement).appendChild(s);
+      // alleen de grijze voorbeeldtekst in het e-mailveld; wat je typt leest de app niet
+      var ph = function () {
+        var i = document.querySelector('input[name=loginfmt],input[type=email]');
+        if (i && i.placeholder !== 'gebruikersnaam@schoolmail.com') i.placeholder = 'gebruikersnaam@schoolmail.com';
+      };
+      ph();
+      new MutationObserver(ph).observe(document.documentElement, { childList: true, subtree: true });
+    })();
+    """
 
     static func isPortal(_ url: URL?) -> Bool {
         guard let u = url, u.host?.lowercased() == portalHost else { return false }
