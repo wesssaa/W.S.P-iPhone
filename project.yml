@@ -1,4 +1,4 @@
-# Xcode-project voor Ichthus+ op iPhone. Het .xcodeproj maakt GitHub Actions hier zelf van (xcodegen generate),
+# Xcode-project voor W.S.P op iPhone. Het .xcodeproj maakt GitHub Actions hier zelf van (xcodegen generate),
 # dus er hoeft geen Mac aan te pas te komen. Versie: MARKETING_VERSION hieronder (bij beide targets gelijk houden).
 name: IchthusPlus
 options:
@@ -33,7 +33,7 @@ targets:
     info:
       path: IchthusPlus/Info.plist
       properties:
-        CFBundleDisplayName: Ichthus+
+        CFBundleDisplayName: W.S.P
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
@@ -69,7 +69,7 @@ targets:
     info:
       path: IchthusWidget/Info.plist
       properties:
-        CFBundleDisplayName: Ichthus+
+        CFBundleDisplayName: W.S.P
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:

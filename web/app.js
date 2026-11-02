@@ -15,7 +15,7 @@
   const assetUrl = p => (ASSETS && ASSETS[p]) || (DEMO ? '/app/assets/' : '/__ichthusplus/') + p;
   /* iPhone-app: andere uitleg voor de widget, geen "trillen" */
   const IOS = window.__cpPlatform === 'ios';
-  const IOS_WIDGET = '<p class="small"><b>Zo zet je hem neer:</b> houd een leeg plekje op je beginscherm ingedrukt → tik linksboven op <b>+</b> (of <b>Wijzig</b> → <b>Voeg widget toe</b>) → zoek <b>Ichthus+</b> → kies een maat → <b>Voeg widget toe</b>. Ook op je toegangsscherm kan hij erbij.</p>';
+  const IOS_WIDGET = '<p class="small"><b>Zo zet je hem neer:</b> houd een leeg plekje op je beginscherm ingedrukt → tik linksboven op <b>+</b> (of <b>Wijzig</b> → <b>Voeg widget toe</b>) → zoek <b>W.S.P</b> → kies een maat → <b>Voeg widget toe</b>. Ook op je toegangsscherm kan hij erbij.</p>';
 
   /* ---------- opslag ---------- */
   const ls = {
@@ -841,7 +841,7 @@
 
   /* kop en tabbalk */
   header { display: flex; align-items: flex-end; gap: 12px; padding: 16px 20px 10px; flex-shrink: 0; }
-  .hmark { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; align-self: center; box-shadow: 0 0 0 1px var(--line); }
+  .hmark { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; align-self: center; }
   .hd { flex: 1; min-width: 0; }
   .hdate { margin: 0 0 2px; font: 600 11px/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
   header h1 { margin: 0; font: 800 30px/1.05 var(--f-display); letter-spacing: -.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1366,7 +1366,7 @@
     { k: 'cijfers', label: 'Cijfers' },
     { k: 'meer', label: 'Meer' }
   ];
-  sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="Ichthus+" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
+  sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="W.S.P" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
     <button class="ibtn" data-a="refresh" aria-label="Vernieuwen">${ICONS.refresh}</button></header><main></main>
     <nav class="tabs"></nav></div>`;
   const app = sh.querySelector('.app');
@@ -1489,7 +1489,7 @@
     const draw = () => {
       const e = dataEstimate(st, opens);
       p.innerHTML = `<div class="panel-h"><h2>Datagebruik</h2><button class="btn" data-a="done">Klaar</button></div>
-        <p class="small muted">Hoe vaak Ichthus+ op de achtergrond naar nieuwe cijfers, huiswerk en roosterwijzigingen kijkt. 's Nachts (23:00–06:00) kijkt hij niet. Als je de app opent of op vernieuwen tikt, haalt hij altijd alles op.</p>
+        <p class="small muted">Hoe vaak W.S.P op de achtergrond naar nieuwe cijfers, huiswerk en roosterwijzigingen kijkt. 's Nachts (23:00–06:00) kijkt hij niet. Als je de app opent of op vernieuwen tikt, haalt hij altijd alles op.</p>
         <div class="seg">${[['wifi', 'Wifi'], ['mobile', '4G/5G']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab2="${k}">${l}</button>`).join('')}</div>
         ${tab === 'wifi' ? `<div class="card-box"><div class="setting-h">Op wifi kijken</div>
             ${opt('wifi', [['30', 'Elk half uur'], ['60', 'Elk uur'], ['120', 'Elke 2 uur']])}
@@ -2719,7 +2719,8 @@
   /* ---------- tab: meer ---------- */
   /* ---------- thema's kiezen (eigen scherm, zodat Meer niet vol foto's staat) ---------- */
   /* app-icoon op je startscherm */
-  const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit'], ['zwart', 'Zwart met tekst'], ['default', 'Wit met tekst']];
+  /* W.S.P-munt op zwart of wit (de oude varianten "met tekst" zijn nu hetzelfde als zwart en wit) */
+  const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit']];
   const curIcon = () => { try { return Native && Native.getIcon ? Native.getIcon() : ls.get('cp:icon', 'zwartkaal'); } catch (e) { return 'zwartkaal'; } };
   const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET('icon-' + (k === 'default' ? 'wit' : k) + '.png')}" alt=""><span>${l}</span></button>`).join('')}</div>`;
   function setIcon(k) {
@@ -2735,7 +2736,7 @@
     const days = Math.floor((ms - Date.now()) / 864e5), d = new Date(ms);
     return (days < 1 ? 'Verloopt vandaag' : days === 1 ? 'Nog 1 dag' : 'Nog ' + days + ' dagen') + ' geldig (tot ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ')';
   };
-  const refreshSteps = () => `<p class="small" style="color:var(--fg2)"><span class="tag">VERPLICHT</span> Met een gratis Apple ID werkt Ichthus+ 7 dagen. Daarna moet SideStore hem vernieuwen, anders opent hij niet meer. ${esc(expiryText())}.</p>
+  const refreshSteps = () => `<p class="small" style="color:var(--fg2)"><span class="tag">VERPLICHT</span> Met een gratis Apple ID werkt W.S.P 7 dagen. Daarna moet SideStore hem vernieuwen, anders opent hij niet meer. ${esc(expiryText())}.</p>
       <p class="small" style="color:var(--fg2)">Laat <b>LocalDevVPN</b> gewoon aan staan (hij werkt alleen binnen je telefoon en kost bijna geen batterij). Laat het vernieuwen dan 's nachts vanzelf gebeuren met de app <b>Opdrachten</b>, in 3 stappen:</p>
       <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
         <li>Open <b>Opdrachten</b> → <b>Automatisering</b> → <b>+</b> → <b>Tijdstip</b>.</li>
@@ -2770,7 +2771,7 @@
     m.innerHTML = `<div class="sheet"><h3>Zien wat je hierna hebt</h3>
       <div data-wsize></div>
       <p class="small muted">Een widget op je startscherm met je les van nu of je volgende les, het lokaal en of er uitval is, in drie maten. Tik erop en je ziet je rooster.</p>
-      <div class="ws-help" hidden><p class="small"><b>Zelf toevoegen:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>Ichthus+</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
+      <div class="ws-help" hidden><p class="small"><b>Zelf toevoegen:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
       <button class="btn" data-a="pin">Op startscherm zetten</button><button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
     if (IOS) {
@@ -2829,7 +2830,7 @@
       <p class="small" style="color:var(--fg2)">Met de widget zie je zonder de app te openen welke les je nu of straks hebt, in welk lokaal, en of hij uitvalt. Kies een maat:</p>
       <div data-wsize></div>
       <p class="small muted">Tik op de widget en je rooster opent. Je kunt hem later ook neerzetten bij Meer → Zien wat je hierna hebt.</p>
-      <div class="ws-help" hidden><p class="small"><b>Zelf neerzetten:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>Ichthus+</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
+      <div class="ws-help" hidden><p class="small"><b>Zelf neerzetten:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
       <div class="row"><button class="btn ghost" data-a="later">Later</button><button class="btn" data-a="pin">Op startscherm zetten</button></div></div>`;
     const done = () => { ls.set('cp:widgetAsked', 1); m.remove(); askZermelo(); };
     const kind = widgetSizePicker(m.querySelector('[data-wsize]'));
@@ -2846,7 +2847,7 @@
     app.appendChild(m);
   }
   /* na het inloggen (en na voorwaarden en icoon): één keer vragen om Zermelo te koppelen */
-  /* eerste keer: meteen toestaan dat Ichthus+ zijn eigen updates mag installeren (daarna één tik per update) */
+  /* eerste keer: meteen toestaan dat W.S.P zijn eigen updates mag installeren (daarna één tik per update) */
   function askInstall() {
     const can = () => { try { return Native.canInstall(); } catch (e) { return true; } };
     if (ls.get('cp:installAsked', 0) || !(Native && Native.canInstall && Native.openInstallSettings)) return askBatteryStep();
@@ -2855,10 +2856,10 @@
     const m = document.createElement('div');
     m.className = 'modal';
     m.innerHTML = `<div class="sheet"><h3>Updates in de app</h3>
-      <p class="small" style="color:var(--fg2)">Ichthus+ kan zichzelf bijwerken als er een nieuwe versie is. Daarvoor moet je één keer toestaan dat Ichthus+ <b>apps mag installeren</b>.</p>
+      <p class="small" style="color:var(--fg2)">W.S.P kan zichzelf bijwerken als er een nieuwe versie is. Daarvoor moet je één keer toestaan dat W.S.P <b>apps mag installeren</b>.</p>
       <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px${already ? ';opacity:.5;text-decoration:line-through' : ''}">
-        <li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar Ichthus+.</li></ol>
-      <p class="small muted">Dit is alleen voor updates van Ichthus+ zelf. Je kunt het later altijd weer uitzetten.</p>
+        <li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar W.S.P.</li></ol>
+      <p class="small muted">Dit is alleen voor updates van W.S.P zelf. Je kunt het later altijd weer uitzetten.</p>
       <div class="small" data-inst style="font-weight:700;color:var(--accent-text)">${already ? '✓ Staat bij jou al aan. Updates kunnen met één tik.' : ''}</div>
       <div class="row"><button class="btn" data-a="set" style="flex:1">${already ? 'Verder' : 'Instellen'}</button></div><div data-stuck></div></div>`;
     let tries = 0, back = null, finished = false;
@@ -2897,7 +2898,7 @@
     box.innerHTML = '<button class="linkbtn" style="text-align:center;font-size:13px;color:var(--muted);border-bottom:0">Lukt het echt niet? Ga verder</button>';
     box.firstChild.onclick = onContinue;
   }
-  /* eerste keer, na de update-instelling: batterijbesparing uit voor Ichthus+, eerst uitleggen wat je moet doen */
+  /* eerste keer, na de update-instelling: batterijbesparing uit voor W.S.P, eerst uitleggen wat je moet doen */
   function askBatteryStep() {
     if (IOS) return ls.get('cp:refreshAsked', 0) ? askWidgetStep() : askRefreshStep();
     const ok = () => { try { return Native.batteryOk(); } catch (e) { return true; } };
@@ -2909,7 +2910,7 @@
     /* staat al goed (en geen Xiaomi met zijn extra instelling): toch even laten zien, met Verder */
     if (step === 2 && !xiaomi) {
       m.innerHTML = `<div class="sheet"><h3>Meldingen op tijd</h3>
-        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen en reminders te laat of niet. Daarom moet de <b>batterijbesparing uit staan voor Ichthus+</b>.</p>
+        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen en reminders te laat of niet. Daarom moet de <b>batterijbesparing uit staan voor W.S.P</b>.</p>
         <div class="small" style="font-weight:700;color:var(--accent-text)">✓ Staat bij jou al goed.</div>
         <div class="row"><button class="btn" data-a="set" style="flex:1">Verder</button></div></div>`;
       readFirst(m.querySelector('[data-a=set]'), () => { ls.set('cp:batteryAsked', 1); m.remove(); askWidgetStep(); });
@@ -2918,11 +2919,11 @@
     }
     const draw = () => {
       m.innerHTML = `<div class="sheet"><h3>Meldingen op tijd</h3>
-        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen over nieuwe cijfers en uitval, en je reminders, te laat of helemaal niet. Zet daarom de <b>batterijbesparing uit voor Ichthus+</b>.</p>
+        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen over nieuwe cijfers en uitval, en je reminders, te laat of helemaal niet. Zet daarom de <b>batterijbesparing uit voor W.S.P</b>.</p>
         <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
-          <li${step > 1 ? ' style="opacity:.5;text-decoration:line-through"' : ''}>Tik op <b>Instellen</b>. Er komt een venster van Android met de vraag of Ichthus+ op de achtergrond mag blijven werken: tik op <b>Toestaan</b> (of <b>OK</b>).</li>
-          ${xiaomi ? `<li>Daarna opent de app-info van Ichthus+. Tik op <b>Batterijbesparing</b> en kies <b>Geen beperkingen</b>. Ga dan terug naar Ichthus+.</li>` : ''}</ol>
-        <p class="small muted">Ichthus+ gebruikt daardoor niet merkbaar meer batterij: hij kijkt alleen af en toe even.</p>
+          <li${step > 1 ? ' style="opacity:.5;text-decoration:line-through"' : ''}>Tik op <b>Instellen</b>. Er komt een venster van Android met de vraag of W.S.P op de achtergrond mag blijven werken: tik op <b>Toestaan</b> (of <b>OK</b>).</li>
+          ${xiaomi ? `<li>Daarna opent de app-info van W.S.P. Tik op <b>Batterijbesparing</b> en kies <b>Geen beperkingen</b>. Ga dan terug naar W.S.P.</li>` : ''}</ol>
+        <p class="small muted">W.S.P gebruikt daardoor niet merkbaar meer batterij: hij kijkt alleen af en toe even.</p>
         <div class="small" data-bat style="font-weight:700;color:var(--accent-text)">${step > 1 && !xiaomi ? '✓ Staat goed.' : step > 1 ? '✓ Stap 1 gelukt.' : ''}</div>
         <div class="row"><button class="btn ghost" data-a="klaar">${opened ? 'Klaar' : 'Later'}</button><button class="btn" data-a="set" style="flex:1">${step > 1 && xiaomi ? 'App-info openen' : 'Instellen <span class="aanb">aanbevolen</span>'}</button></div></div>`;
       const k = m.querySelector('[data-a=klaar]');
@@ -2992,7 +2993,7 @@
     const m = document.createElement('div');
     m.className = 'modal';
     const draw = () => {
-      m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat Ichthus+ op je startscherm. Later aanpassen kan bij Meer → Thema.</p>
+      m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat W.S.P op je startscherm. Later aanpassen kan bij Meer → Thema.</p>
         ${iconGrid(ls.get('cp:icon', 'zwartkaal'))}<button class="btn" data-a="ok">Klaar</button></div>`;
       m.querySelectorAll('[data-icon]').forEach(b => { b.onclick = () => { ls.set('cp:icon', b.dataset.icon); draw(); }; });
       m.querySelector('[data-a=ok]').onclick = () => { setIcon(ls.get('cp:icon', 'zwartkaal')); ls.set('cp:iconPicked', 1); m.remove(); askInstall(); };
@@ -3031,17 +3032,17 @@
   function showTerms(viewOnly) {
     const el = document.createElement('div');
     el.className = 'terms';
-    el.innerHTML = `<div class="logos"><img src="${ASSET('ichthus.svg')}" alt="Ichthus College"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+    el.innerHTML = `<div class="logos"><img src="${ASSET('mark.png')}" alt="W.S.P"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
       <h2>${viewOnly ? 'Voorwaarden en privacy' : 'Voordat je begint'}</h2>
       <ul>
-        <li><b>Onofficiële app.</b> Ichthus+ is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens het Ichthus College of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
-        <li><b>Namen en logo's</b> van het Ichthus College en Zermelo zijn van hun eigenaren. Ze staan in de app alleen om te laten zien waar de gegevens vandaan komen. Als de school of Zermelo dat niet wil, worden ze weggehaald.</li>
+        <li><b>Onofficiële app.</b> W.S.P is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens het Ichthus College of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
+        <li><b>Namen en logo's.</b> De naam van het Ichthus College en de naam en het logo van Zermelo zijn van hun eigenaren. Ze staan in de app alleen om te laten zien waar de gegevens vandaan komen. Als de school of Zermelo dat niet wil, worden ze weggehaald.</li>
         <li><b>Inloggen</b> gaat via de gewone inlog van school (Microsoft) en Zermelo. De app ziet en bewaart je wachtwoord niet. Om je ingelogd te houden bewaart hij alleen de inlogcookies van het portaal (tot 30 dagen, bij elk gebruik verlengd) en de Zermelo-sleutel, in de afgeschermde opslag van de app op je telefoon. Andere apps kunnen daar niet bij. Uitloggen wist ze.</li>
         <li><b>Je gegevens</b> (cijfers, rooster, huiswerk, absentie, je reminders en huiswerk dat je zelf toevoegt) worden alleen op deze telefoon bewaard en nergens anders heen gestuurd.</li>
         <li><b>Rooster van iemand anders.</b> Staat je school het in Zermelo toe, dan kun je met een leerlingnummer het rooster van een medeleerling bekijken. De app laat alleen zien wat Zermelo jou ook laat zien, en bewaart het niet. Gebruik het netjes.</li>
         <li><b>Op de achtergrond</b> kijkt de app in het leerlingportaal en Zermelo of er nieuwe cijfers, huiswerk of roosterwijzigingen zijn: ${IOS ? "zo vaak als iOS dat toestaat (meestal een paar keer per dag), hooguit zoals je instelt, en 's nachts niet" : "op wifi standaard elk half uur, op 4G/5G standaard elke 2,5 uur (alleen rooster en cijfers), elke schooldag een uur voor je eerste les, en 's nachts niet"}. Je stelt dit zelf in bij Meer → Datagebruik. Het gaat met je eigen inlog en alleen voor de meldingen die je aan hebt staan.</li>
         <li><b>Uitloggen</b> haalt je inlog en de Zermelo-koppeling weg. Welke cijfers je al hebt geopend, je afgevinkte huiswerk en je reminders blijven op deze telefoon bewaard onder jouw account, zodat ze terugkomen als je weer inlogt. Iemand anders die hier inlogt, ziet ze niet.</li>
-        <li><b>Updates.</b> De app staat op GitHub. Ichthus+ kijkt daar als je de app opent op wifi of er een nieuwe versie is, en downloadt die daar als je op Bijwerken tikt. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. De toestemming om apps te installeren wordt alleen gebruikt voor updates van Ichthus+ zelf.</li>
+        <li><b>Updates.</b> De app staat op GitHub. W.S.P kijkt daar als je de app opent op wifi of er een nieuwe versie is, en downloadt die daar als je op Bijwerken tikt. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. De toestemming om apps te installeren wordt alleen gebruikt voor updates van W.S.P zelf.</li>
         <li><b>Foutmeldingen.</b> Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh), met de app-versie en je telefoonmodel. Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>
         <li><b>Cookies en opslag.</b> De app gebruikt de cookies van het leerlingportaal en Zermelo om je ingelogd te houden, en lokale opslag voor je instellingen en reminders. De lettertypes zitten in de app zelf, daarvoor wordt niets van internet geladen. Er zijn geen advertenties en er wordt niets bijgehouden.</li>
         <li><b>Geen garantie.</b> De app kan fouten bevatten of verouderde informatie tonen. Controleer belangrijke dingen, zoals cijfers, toetsen en roosterwijzigingen, altijd in het leerlingportaal of Zermelo.</li>
@@ -3121,7 +3122,7 @@
     hwremind: ['Huiswerkherinneringen', 'Kies wanneer je een seintje krijgt voordat huiswerk af moet zijn. <b>Standaard</b> geldt voor alles, per vak kun je het anders instellen. Afgevinkt huiswerk krijgt geen herinnering meer.'],
     themes: ['Thema', 'Kies <b>Wit</b> of <b>Zwart</b> en een accentkleur. Met het regenboogrondje kies je zelf een kleur. Onderaan kies je het icoontje op je startscherm.'],
     data: ['Datagebruik', 'Hier kies je hoe vaak de app kijkt op <b>wifi</b> en op <b>4G/5G</b>, en wat er op 4G/5G mag. Je ziet ook een schatting van je dataverbruik, zodat je bundel niet opgaat.'],
-    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> Ichthus+ werkt 7 dagen, daarna moet SideStore hem vernieuwen, anders opent hij niet meer. Laat LocalDevVPN aan staan en stel in <b>Opdrachten</b> één keer in:<br><b>1. Automatisering → + → Tijdstip</b><br><b>2. 02:00, Wekelijks, twee dagen aanvinken → Voer direct uit</b><br><b>3. SideStore → Refresh All Apps → Gereed</b><br>Hier zie je ook hoeveel dagen hij nog werkt.']
+    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> W.S.P werkt 7 dagen, daarna moet SideStore hem vernieuwen, anders opent hij niet meer. Laat LocalDevVPN aan staan en stel in <b>Opdrachten</b> één keer in:<br><b>1. Automatisering → + → Tijdstip</b><br><b>2. 02:00, Wekelijks, twee dagen aanvinken → Voer direct uit</b><br><b>3. SideStore → Refresh All Apps → Gereed</b><br>Hier zie je ook hoeveel dagen hij nog werkt.']
   };
   if (IOS) TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
   const tipSeen = k => !!(ls.get('cp:tips', {}) || {})[k];
@@ -3333,7 +3334,7 @@
       /* iPhone: SideStore installeert de update */
       if (st === 'sidestore' || st === 'browser') {
         go.disabled = false;
-        msg.textContent = st === 'sidestore' ? 'Tik in SideStore op Installeren. Daarna open je Ichthus+ gewoon weer.' : 'SideStore niet gevonden: de download staat in Safari. Zet hem via SideStore → My Apps → + erop.';
+        msg.textContent = st === 'sidestore' ? 'Tik in SideStore op Installeren. Daarna open je W.S.P gewoon weer.' : 'SideStore niet gevonden: de download staat in Safari. Zet hem via SideStore → My Apps → + erop.';
       }
       else if (st === 'busy') msg.textContent = 'Downloaden… ' + pct + '%';
       else if (st === 'ask') {
@@ -3342,7 +3343,7 @@
         setTimeout(() => { if (m.isConnected && go.disabled) { go.disabled = false; msg.textContent = 'Geen venster gezien of weggeklikt? Tik opnieuw op Nu bijwerken.'; } }, 6000);
       }
       else if (st === 'cancel') { go.disabled = false; msg.textContent = 'Bijwerken geannuleerd. Tik opnieuw op Nu bijwerken als je wilt.'; }
-      else if (st === 'perm') { go.disabled = false; msg.textContent = 'Zet "Toestaan uit deze bron" aan voor Ichthus+, ga terug en tik opnieuw op Nu bijwerken.'; }
+      else if (st === 'perm') { go.disabled = false; msg.textContent = 'Zet "Toestaan uit deze bron" aan voor W.S.P, ga terug en tik opnieuw op Nu bijwerken.'; }
       else { go.disabled = false; msg.textContent = 'Downloaden mislukt. Controleer je internet en probeer het opnieuw.'; }
     };
     app.appendChild(m);
@@ -3403,7 +3404,7 @@
     const m = document.createElement('div');
     m.className = 'modal upd';
     if (!canUpdate()) { ls.set('cp:firstUpd', 1); return next(); }
-    m.innerHTML = `<div class="sheet"><h3>Even kijken…</h3><p class="small muted">Is er al een nieuwere versie van Ichthus+?</p><div class="spinner" style="margin:6px auto"></div></div>`;
+    m.innerHTML = `<div class="sheet"><h3>Even kijken…</h3><p class="small muted">Is er al een nieuwere versie van W.S.P?</p><div class="spinner" style="margin:6px auto"></div></div>`;
     app.appendChild(m);
     let u = null;
     try { u = await Promise.race([fetchRelease(), new Promise((_, bad) => setTimeout(() => bad(new Error('time-out')), 8000))]); } catch (e) {}
@@ -3414,9 +3415,9 @@
     const draw = () => {
       const perm = !can();
       m.innerHTML = `<div class="sheet"><h3>Eerst bijwerken</h3>
-        <p class="small" style="color:var(--fg2)">Je hebt versie ${esc(appVer())}, de nieuwste is <b>${esc(u.v)}</b>. ${IOS ? 'SideStore gaat zo open om hem bij te werken' : 'Ichthus+ werkt zichzelf nu eerst bij'}, dan heb je meteen alles wat nieuw is.</p>
-        ${perm ? `<p class="small" style="color:var(--fg2)">Daarvoor moet je één keer toestaan dat Ichthus+ <b>apps mag installeren</b> (alleen voor updates van Ichthus+ zelf):</p>
-          <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px"><li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar Ichthus+, het bijwerken begint dan vanzelf.</li></ol>` : ''}
+        <p class="small" style="color:var(--fg2)">Je hebt versie ${esc(appVer())}, de nieuwste is <b>${esc(u.v)}</b>. ${IOS ? 'SideStore gaat zo open om hem bij te werken' : 'W.S.P werkt zichzelf nu eerst bij'}, dan heb je meteen alles wat nieuw is.</p>
+        ${perm ? `<p class="small" style="color:var(--fg2)">Daarvoor moet je één keer toestaan dat W.S.P <b>apps mag installeren</b> (alleen voor updates van W.S.P zelf):</p>
+          <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px"><li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar W.S.P, het bijwerken begint dan vanzelf.</li></ol>` : ''}
         <div class="small" data-updmsg style="text-align:center;font-weight:700;color:var(--accent-text)"></div>
         ${perm ? '<div class="row"><button class="btn" data-a="set" style="flex:1">Instellen</button></div>' : ''}<div data-stuck></div></div>`;
       /* eerste keer bijwerken is verplicht: eerst lezen, dan instellen; alleen na 2 keer zonder resultaat een uitweg */
@@ -3449,7 +3450,7 @@
       /* iPhone: SideStore neemt het over; daarna mag je verder (de update komt binnen als SideStore klaar is) */
       if (st === 'sidestore' || st === 'browser') {
         started = false;
-        msg(st === 'sidestore' ? 'Tik in SideStore op Installeren en open Ichthus+ daarna weer.' : 'SideStore niet gevonden: de download staat in Safari.');
+        msg(st === 'sidestore' ? 'Tik in SideStore op Installeren en open W.S.P daarna weer.' : 'SideStore niet gevonden: de download staat in Safari.');
         const box = m.querySelector('[data-stuck]');
         if (box) { box.innerHTML = '<div class="row"><button class="btn ghost" data-a="on" style="flex:1">Verder met deze versie</button></div>'; box.querySelector('[data-a=on]').onclick = go; }
       }
@@ -3763,7 +3764,7 @@
           <button class="linkbtn" data-a="ownadd" style="border-bottom:0;padding-bottom:0">+ Zet reminder</button>
         </div>
         ${ns ? `<div class="card-box"><div class="setting-h">Meldingen</div>
-          ${ns.allowed ? '' : `<div class="err" style="margin-bottom:8px">${IOS ? 'Meldingen staan uit voor Ichthus+. Zet ze aan bij Instellingen → Ichthus+ → Berichtgeving.' : 'Meldingen staan uit in de Android-instellingen voor deze app.'}</div>`}
+          ${ns.allowed ? '' : `<div class="err" style="margin-bottom:8px">${IOS ? 'Meldingen staan uit voor W.S.P. Zet ze aan bij Instellingen → W.S.P → Berichtgeving.' : 'Meldingen staan uit in de Android-instellingen voor deze app.'}</div>`}
           <button class="setrow" data-a="remind"><span class="sr-t"><b>Herinneringen instellen</b><small>Standaard: ${esc(ruleLabel(hwRules.def))}</small></span><span class="go">›</span></button>
           ${modeRow('hw', 'Huiswerk', 'Nieuw huiswerk en nieuwe aantekeningen', ns.n_hw_mode)}
           ${modeRow('rooster', 'Rooster', zm ? 'Uitval en lokaalwijzigingen (Zermelo)' : 'Koppel Zermelo voor betrouwbare uitval', ns.n_rooster_mode)}
@@ -3771,7 +3772,7 @@
           ${modeRow('own', 'Eigen reminders', 'Reminders die je zelf zet bij Meer', ns.n_own_mode || 'geluid')}
           ${modeRow('grades', 'Nieuwe cijfers', '', ns.n_grades_mode)}
           ${toggle('n_showgrade', 'Cijfer laten zien in melding', 'Uit: alleen het vak, het cijfer zie je bij het unboxen', ns.n_showgrade)}
-          ${Native && Native.openNotifSettings ? `<button class="setrow" data-a="nsys" style="padding-top:10px;border-bottom:0"><span class="sr-t"><b>Melding op je scherm laten zien</b><small>Xiaomi/Redmi: zet "Zwevende meldingen" en "Vergrendelscherm" aan voor Ichthus+</small></span><span class="go">›</span></button>` : ''}
+          ${Native && Native.openNotifSettings ? `<button class="setrow" data-a="nsys" style="padding-top:10px;border-bottom:0"><span class="sr-t"><b>Melding op je scherm laten zien</b><small>Xiaomi/Redmi: zet "Zwevende meldingen" en "Vergrendelscherm" aan voor W.S.P</small></span><span class="go">›</span></button>` : ''}
         </div>` : ''}
         <div class="card-box"><div class="setting-h">Zermelo</div>
           ${zm ? `<div class="listrow"><span class="muted">Gekoppeld met</span><b>${esc(zm.school)}${zm.sso ? ' · schoolaccount' : ''}</b></div><button class="linkbtn red" data-a="zmoff" style="border-bottom:0">Ontkoppelen</button>`
@@ -3800,9 +3801,9 @@
           <button class="linkbtn" data-a="portal">Portaal openen in browser</button>
           <button class="linkbtn red" data-a="logout">Uitloggen</button>
         </div>
-        <div class="card-box"><div class="setting-h">Over Ichthus+</div>
-          <div class="logos"><img src="${ASSET('ichthus.svg')}" alt="Ichthus College"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
-          <p class="small muted" style="margin-top:10px">Ichthus+ is een onofficiële app. Hij is niet gemaakt door of namens het Ichthus College of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
+        <div class="card-box"><div class="setting-h">Over W.S.P</div>
+          <div class="logos"><img src="${ASSET('mark.png')}" alt="W.S.P"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+          <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens het Ichthus College of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
           ${canUpdate() ? `<button class="linkbtn" data-a="upd">Zoek naar updates <span class="muted" style="font-weight:500">· je hebt versie ${esc(appVer())}</span></button>` : ''}
           <button class="linkbtn" data-a="terms" style="border-bottom:0;padding-bottom:0">Voorwaarden en privacy bekijken</button>
         </div>

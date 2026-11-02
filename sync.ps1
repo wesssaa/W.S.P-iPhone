@@ -17,44 +17,37 @@ New-Item -ItemType Directory -Force "$here\demo" | Out-Null
 $demo = (Get-Content "$app\..\preview\index.html" -Raw -Encoding utf8) -replace '<script src="/app/assets/app.js"></script>', ''
 [IO.File]::WriteAllText("$here\demo\demo.html", $demo, (New-Object Text.UTF8Encoding $false))
 
-# 2. iconen: voorgrond en achtergrond van de Android-iconen, het midden op 1024 px
+# 2. iconen: de W.S.P-munt op zwart of wit (gemaakt door app\art\make-icons.ps1)
 Add-Type -AssemblyName System.Drawing
 $cat = Join-Path $here 'IchthusPlus\Assets.xcassets'
 New-Item -ItemType Directory -Force $cat | Out-Null
 '{"info":{"author":"xcode","version":1}}' | Set-Content "$cat\Contents.json" -Encoding ascii
 
-function Save-Icon($set, [System.Drawing.Image[]]$layers, [bool]$crop) {
+# iOS wil app-iconen zonder doorzichtigheid: daarom overzetten naar 24-bits
+function Save-Icon($set, $src) {
   $dir = "$cat\$set.appiconset"
   New-Item -ItemType Directory -Force $dir | Out-Null
+  $img = [System.Drawing.Image]::FromFile((Resolve-Path $src))
   $bmp = New-Object System.Drawing.Bitmap 1024, 1024, ([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.InterpolationMode = 'HighQualityBicubic'; $g.SmoothingMode = 'HighQuality'; $g.PixelOffsetMode = 'HighQuality'
-  foreach ($l in $layers) {
-    if ($crop) {
-      $m = $l.Width / 9  # iets meer dan het zichtbare midden van Android (72 van 108 dp), zodat de vis niet tegen de rand zit
-      $src = New-Object System.Drawing.RectangleF $m, $m, ($l.Width - 2 * $m), ($l.Height - 2 * $m)
-    } else { $src = New-Object System.Drawing.RectangleF 0, 0, $l.Width, $l.Height }
-    $g.DrawImage($l, (New-Object System.Drawing.RectangleF 0, 0, 1024, 1024), $src, 'Pixel')
-  }
-  $g.Dispose()
+  $g.InterpolationMode = 'HighQualityBicubic'
+  $g.DrawImage($img, 0, 0, 1024, 1024)
+  $g.Dispose(); $img.Dispose()
   $bmp.Save("$dir\icon.png", [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
   '{"images":[{"filename":"icon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}' | Set-Content "$dir\Contents.json" -Encoding ascii
 }
-function Img($p) { [System.Drawing.Image]::FromFile((Resolve-Path $p)) }
 
-# standaard = zwart zonder tekst (net als op Android)
-foreach ($v in @(@('AppIcon', 'zwartkaal'), @('AppIcon-Kaal', 'kaal'), @('AppIcon-Zwart', 'zwart'))) {
-  $bg = Img "$app\art\v-$($v[1])-bg-xxxhdpi.png"; $fg = Img "$app\art\v-$($v[1])-fg-xxxhdpi.png"
-  Save-Icon $v[0] @($bg, $fg) $true
-  $bg.Dispose(); $fg.Dispose()
-}
-$wit = Img "$app\art\icon-512.png"; Save-Icon 'AppIcon-Wit' @($wit) $false; $wit.Dispose()
+# standaard = zwart (net als op Android); de oude namen blijven, zodat een gekozen icoon blijft werken
+Save-Icon 'AppIcon' "$app\art\wsp-ios-zwart.png"
+Save-Icon 'AppIcon-Zwart' "$app\art\wsp-ios-zwart.png"
+Save-Icon 'AppIcon-Kaal' "$app\art\wsp-ios-wit.png"
+Save-Icon 'AppIcon-Wit' "$app\art\wsp-ios-wit.png"
 
-# 3. opstartscherm: het visje op de achtergrondkleur van het witte thema
+# 3. opstartscherm: de munt op de achtergrondkleur van het witte thema
 $ls = "$cat\LaunchMark.imageset"
 New-Item -ItemType Directory -Force $ls | Out-Null
-Copy-Item "$app\res\drawable-xxxhdpi\splash_logo_light.png" "$ls\mark.png" -Force
+Copy-Item "$app\art\wsp-launch.png" "$ls\mark.png" -Force
 '{"images":[{"filename":"mark.png","idiom":"universal","scale":"3x"}],"info":{"author":"xcode","version":1}}' | Set-Content "$ls\Contents.json" -Encoding ascii
 $lc = "$cat\LaunchBackground.colorset"
 New-Item -ItemType Directory -Force $lc | Out-Null

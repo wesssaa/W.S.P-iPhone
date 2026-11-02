@@ -75,7 +75,7 @@ struct Provider: TimelineProvider {
             let a = after.flatMap { Calendar.current.isDate($0.s, inSameDayAs: n.s) ? daarna($0) : nil }
             return Entry(date: now, when: when, vak: n.label, lok: n.uit ? "" : n.lok, info: info(n), next: a, uit: n.uit, accent: accent)
         }
-        return Entry(date: now, when: "ICHTHUS+", vak: all.isEmpty ? "Rooster" : "Geen lessen meer", lok: "",
+        return Entry(date: now, when: "W.S.P", vak: all.isEmpty ? "Rooster" : "Geen lessen meer", lok: "",
                      info: all.isEmpty ? "Open de app om je rooster te laden" : "Open de app voor je rooster", next: nil, uit: false, accent: accent)
     }
 
@@ -107,7 +107,7 @@ struct WidgetView: View {
         switch family {
         case .accessoryInline:
             // één regel boven de klok op het toegangsscherm
-            Text(e.vak == "Rooster" || e.vak == "Geen lessen meer" ? "Ichthus+" : "\(e.when.replacingOccurrences(of: "STRAKS · ", with: "")) \(e.vak)\(e.uit ? " valt uit" : e.lok.isEmpty ? "" : " · " + e.lok)")
+            Text(e.vak == "Rooster" || e.vak == "Geen lessen meer" ? "W.S.P" : "\(e.when.replacingOccurrences(of: "STRAKS · ", with: "")) \(e.vak)\(e.uit ? " valt uit" : e.lok.isEmpty ? "" : " · " + e.lok)")
         case .accessoryCircular:
             VStack(spacing: 0) {
                 Text(e.vak).font(.system(size: 15, weight: .heavy)).minimumScaleFactor(0.5).lineLimit(1)
