@@ -3742,7 +3742,8 @@
       main.querySelector('[data-a=tabs]').onclick = () => openTabs(draw);
       const db = main.querySelector('[data-a=data]');
       if (db) db.onclick = () => openData(draw);
-      main.querySelector('[data-a=widget]').onclick = widgetSheet;
+      const wb = main.querySelector('[data-a=widget]');
+      if (wb) wb.onclick = widgetSheet;
       /* aantekening wegklikken: schuift weg en komt niet meer terug */
       main.querySelectorAll('[data-absx]').forEach(b => {
         b.onclick = () => {
