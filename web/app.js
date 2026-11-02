@@ -3262,7 +3262,9 @@
     return preNum(a) > preNum(b);
   };
   /* canary-updates (ontwikkelaarsopties): alleen op deze telefoon, dan ook pre-releases van GitHub */
-  const canaryOn = () => !!ls.get('cp:canary', false);
+  /* alleen als het ontwikkelaarsscherm met de code is ontgrendeld (dat geldt tot je de app sluit) én Canary-updates aan staat;
+     zonder code krijg je altijd gewone versies, ook als de schakelaar van een eerdere keer nog aan staat */
+  const canaryOn = () => !!(S.devOn && ls.get('cp:canary', false));
   const appVer = () => { try { return Native && Native.appVersion ? Native.appVersion() : ''; } catch (e) { return ''; } };
   const canUpdate = () => !!(Native && Native.installUpdate && appVer());
   /* via Android (het portaal kan verzoeken naar andere sites tegenhouden); in de preview gewoon met fetch */
@@ -3296,6 +3298,9 @@
     const cur = appVer();
     /* elke keer opnieuw kijken (dat kost bijna niks), maar niet vaker dan eens per 2 minuten als je snel heen en weer wisselt */
     let u = ls.get('cp:updFound', null);
+    /* een eerder gevonden canary niet laten zien als canary nu niet mag (geen ontwikkelaarscode): opnieuw kijken */
+    const isCanary = v => /-(canary|beta)\./.test(String(v || ''));
+    if (u && isCanary(u.v) && !canaryOn()) { u = null; ls.set('cp:updFound', null); ls.set('cp:updCheck', 0); }
     if (manual || force || Date.now() - (ls.get('cp:updCheck', 0) || 0) > 2 * 60000) {
       try { u = await fetchRelease(); ls.set('cp:updCheck', Date.now()); ls.set('cp:updFound', u); }
       catch (e) { if (manual) toast('Kon niet kijken of er een update is'); return; }
