@@ -32,13 +32,13 @@ function Save-Icon($set, $src) {
   '{"images":[{"filename":"icon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}' | Set-Content "$dir\Contents.json" -Encoding ascii
 }
 
-# standaard = zwart (net als op Android); de oude namen blijven, zodat een gekozen icoon blijft werken
+# zelfde vier als op Android: standaard = witte letters op zwart, Kaal = zwart op wit, Zwart = goud op zwart, Wit = goud op wit
 Save-Icon 'AppIcon' "$app\art\wsp-ios-zwart.png"
-Save-Icon 'AppIcon-Zwart' "$app\art\wsp-ios-zwart.png"
 Save-Icon 'AppIcon-Kaal' "$app\art\wsp-ios-wit.png"
-Save-Icon 'AppIcon-Wit' "$app\art\wsp-ios-wit.png"
+Save-Icon 'AppIcon-Zwart' "$app\art\wsp-ios-goudzwart.png"
+Save-Icon 'AppIcon-Wit' "$app\art\wsp-ios-goudwit.png"
 
-# 3. opstartscherm: de munt op de achtergrondkleur van het witte thema
+# 3. opstartscherm: het zwarte W.S.P-vierkant op de achtergrondkleur van het witte thema
 $ls = "$cat\LaunchMark.imageset"
 New-Item -ItemType Directory -Force $ls | Out-Null
 Copy-Item "$app\art\wsp-launch.png" "$ls\mark.png" -Force

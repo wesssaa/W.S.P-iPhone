@@ -841,7 +841,7 @@
 
   /* kop en tabbalk */
   header { display: flex; align-items: flex-end; gap: 12px; padding: 16px 20px 10px; flex-shrink: 0; }
-  .hmark { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+  .hmark { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; align-self: center; }
   .hd { flex: 1; min-width: 0; }
   .hdate { margin: 0 0 2px; font: 600 11px/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
   header h1 { margin: 0; font: 800 30px/1.05 var(--f-display); letter-spacing: -.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1413,6 +1413,9 @@
     app.classList.toggle('light', t === 'light');
     host.style.background = t === 'light' ? '#f2f2f5' : '#000';
     try { if (Native && Native.setTheme) Native.setTheme(t); } catch (e) {}
+    /* het logo bovenin: zwart vierkant in het witte thema, wit vierkant in het zwarte thema */
+    const mk = sh.querySelector('.hmark');
+    if (mk) mk.src = assetUrl('themes/' + (t === 'light' ? 'mark.png' : 'mark-wit.png'));
     return t;
   }
   let theme = applyTheme(ls.get('cp:theme', 'light')); /* standaard: wit met geel */
@@ -1420,7 +1423,7 @@
 
   /* weergave: wit of zwart, met een eigen accentkleur (geen achtergrondfoto's: die kostten veel geheugen) */
   const ASSET = n => assetUrl('themes/' + n);
-  sh.querySelector('.hmark').src = ASSET('mark.png');
+  sh.querySelector('.hmark').src = ASSET(theme === 'light' ? 'mark.png' : 'mark-wit.png');
   /* van een oudere versie: een gekozen foto-thema of eigen foto opruimen */
   if (ls.get('cp:themeSet', 'custom') !== 'custom' || ls.get('cp:ownPhoto', null)) {
     try { localStorage.removeItem('cp:ownPhoto'); localStorage.removeItem('cp:themeSet'); } catch (e) {}
@@ -2719,12 +2722,10 @@
   /* ---------- tab: meer ---------- */
   /* ---------- thema's kiezen (eigen scherm, zodat Meer niet vol foto's staat) ---------- */
   /* app-icoon op je startscherm */
-  /* W.S.P-munt op zwart of wit (de oude varianten "met tekst" zijn nu hetzelfde als zwart en wit) */
-  const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit']];
+  /* W.S.P in ronde letters: wit op zwart (standaard), zwart op wit, goud op zwart en goud op wit */
+  const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit'], ['zwart', 'Goud op zwart'], ['default', 'Goud op wit']];
   const curIcon = () => { try { return Native && Native.getIcon ? Native.getIcon() : ls.get('cp:icon', 'zwartkaal'); } catch (e) { return 'zwartkaal'; } };
-  /* voor de keuze: de oude varianten "met tekst" zien er nu uit als zwart of wit (niet echt wisselen: dan kan het
-     icoon op sommige telefoons even van je startscherm verdwijnen) */
-  const shownIcon = () => { const c = curIcon(); return c === 'zwart' ? 'zwartkaal' : c === 'default' ? 'kaal' : c; };
+  const shownIcon = curIcon;
   const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET('icon-' + (k === 'default' ? 'wit' : k) + '.png')}" alt=""><span>${l}</span></button>`).join('')}</div>`;
   function setIcon(k) {
     ls.set('cp:icon', k);
@@ -2997,7 +2998,7 @@
     m.className = 'modal';
     const draw = () => {
       m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat W.S.P op je ${IOS ? 'beginscherm' : 'startscherm'}. Later aanpassen kan bij Meer → Thema.</p>
-        ${iconGrid((v => v === 'zwart' ? 'zwartkaal' : v === 'default' ? 'kaal' : v)(ls.get('cp:icon', 'zwartkaal')))}<button class="btn" data-a="ok">Klaar</button></div>`;
+        ${iconGrid(ls.get('cp:icon', 'zwartkaal'))}<button class="btn" data-a="ok">Klaar</button></div>`;
       m.querySelectorAll('[data-icon]').forEach(b => { b.onclick = () => { ls.set('cp:icon', b.dataset.icon); draw(); }; });
       m.querySelector('[data-a=ok]').onclick = () => { setIcon(ls.get('cp:icon', 'zwartkaal')); ls.set('cp:iconPicked', 1); m.remove(); askInstall(); };
     };
@@ -3128,7 +3129,10 @@
     data: ['Datagebruik', 'Hier kies je hoe vaak de app kijkt op <b>wifi</b> en op <b>4G/5G</b>, en wat er op 4G/5G mag. Je ziet ook een schatting van je dataverbruik, zodat je bundel niet opgaat.'],
     sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> W.S.P werkt 7 dagen, daarna moet SideStore hem vernieuwen, anders opent hij niet meer. Laat LocalDevVPN aan staan en stel in <b>Opdrachten</b> één keer in:<br><b>1. Automatisering → + → Tijdstip</b><br><b>2. 02:00, Wekelijks, twee dagen aanvinken → Voer direct uit</b><br><b>3. SideStore → Refresh All Apps → Gereed</b><br>Hier zie je ook hoeveel dagen hij nog werkt.']
   };
-  if (IOS) TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
+  if (IOS) {
+    TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
+    Object.values(TIPS).forEach(t => { t[1] = t[1].replace(/startscherm/g, 'beginscherm'); }); /* zo heet het op iPhone */
+  }
   const tipSeen = k => !!(ls.get('cp:tips', {}) || {})[k];
   /* toont de uitleg als die nog niet gezien is; zit er iets anders in de weg (een venster), dan later nog eens proberen */
   /* over: de uitleg hoort bij het venster dat net open ging, dus daar overheen tonen */
@@ -3221,7 +3225,7 @@
       if (tabBtn) { const b = tabBtn.getBoundingClientRect(); Object.assign(ring.style, { left: (b.left - A.left) + 'px', top: (b.top - A.top) + 'px', width: b.width + 'px', height: b.height + 'px' }); }
       const [title, tipText] = TIPS[k];
       /* bij Thema sta je nog in Meer, niet in het themascherm zelf */
-      const text = k === 'themes' ? 'Tik hier om <b>Wit</b> of <b>Zwart</b> te kiezen, met je eigen accentkleur en een app-icoontje voor je startscherm.' : tipText;
+      const text = k === 'themes' ? 'Tik hier om <b>Wit</b> of <b>Zwart</b> te kiezen, met je eigen accentkleur en een app-icoontje voor je ' + (IOS ? 'beginscherm' : 'startscherm') + '.' : tipText;
       card.innerHTML = `<div class="tip-h"><span class="tip-i">${i + 1}</span><b>${esc(title)}</b><small>${i + 1} van ${TOUR.length}</small></div><p>${text}</p>
         <div class="tour-btns"><button class="btn" data-a="next">${i === TOUR.length - 1 ? 'Klaar' : 'Volgende'}</button></div>`;
       /* uitleg onder het uitgelichte stuk als daar plek is, anders erboven, anders onderin */
