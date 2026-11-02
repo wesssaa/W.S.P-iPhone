@@ -11,12 +11,6 @@ Copy-Item "$app\assets\app.js" $web -Force
 Copy-Item "$app\assets\fonts\*.woff2" "$web\fonts" -Force
 Copy-Item "$app\assets\themes\*.png", "$app\assets\themes\*.svg", "$app\assets\themes\*.mp3" "$web\themes" -Force
 
-# 1b. demo met voorbeeldgegevens (de preview), alleen voor de simulator-build: testen zonder in te loggen.
-#     app.js zet de iPhone-app er zelf in, dus het script-label van de preview eruit.
-New-Item -ItemType Directory -Force "$here\demo" | Out-Null
-$demo = (Get-Content "$app\..\preview\index.html" -Raw -Encoding utf8) -replace '<script src="/app/assets/app.js"></script>', ''
-[IO.File]::WriteAllText("$here\demo\demo.html", $demo, (New-Object Text.UTF8Encoding $false))
-
 # 2. iconen: de W.S.P-munt op zwart of wit (gemaakt door app\art\make-icons.ps1)
 Add-Type -AssemblyName System.Drawing
 $cat = Join-Path $here 'IchthusPlus\Assets.xcassets'

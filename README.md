@@ -111,9 +111,9 @@ De iPhone-versie is een venster op het leerlingenportaal waar `app.js` (precies 
 - `IchthusWidget/` – de widget "volgende les" (klein, middel en toegangsscherm).
 - `web/` – app.js, lettertypes en plaatjes, gekopieerd uit de Android-app met `sync.ps1`.
 - `project.yml` – het Xcode-project; GitHub Actions maakt er zelf een `.xcodeproj` van (geen Mac nodig).
-- `.github/workflows/build.yml` – bouwt een niet-ondertekende `WSP.ipa`; SideStore ondertekent hem met je eigen Apple ID. Met `[sim]` in de commit ook een test in de iPhone-simulator.
+- `.github/workflows/build.yml` – bouwt een niet-ondertekende `WSP.ipa`; SideStore ondertekent hem met je eigen Apple ID. Het versienummer loopt gelijk met de Android-app (`MARKETING_VERSION` in `project.yml`).
 
 ```
 .\iphone\sync.ps1
-.\iphone\push.ps1 -Message "Wat er veranderd is" -Tag v0.2.0
+.\iphone\push.ps1 -Message "Wat er veranderd is" -Tag v2.6.6
 ```

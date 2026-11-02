@@ -12,13 +12,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         // foutmeldingen opvangen, en een fout van de vorige keer naar de ontwikkelaar sturen
         CrashLog.install()
         CrashLog.sendPending()
-        #if DEMO
-        // alleen de simulator-build: een echte crash nadoen om de foutmeldingen te testen (bij de volgende start wordt hij verstuurd)
-        if ProcessInfo.processInfo.arguments.contains("-wspCrashTest") {
-            CrashLog.append("TEST: echte crash in de simulator (GitHub)")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { let leeg: [Int] = []; _ = leeg[1] }
-        }
-        #endif
         UNUserNotificationCenter.current().delegate = self
         _ = Checker.monitor // wifi of 4G/5G bijhouden
         Background.register()
