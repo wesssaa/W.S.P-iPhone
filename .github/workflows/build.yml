@@ -80,9 +80,11 @@ jobs:
           xcodegen generate
 
       - name: Bouwen voor de simulator
+        env:
+          WSP_CRASH_TOPIC: ${{ secrets.WSP_CRASH_TOPIC }}
         run: |
           xcodebuild -project IchthusPlus.xcodeproj -target IchthusPlus -configuration Debug -sdk iphonesimulator \
-            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -D DEMO' CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" build > sim.log 2>&1 \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -D DEMO' CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" WSP_CRASH_TOPIC="$WSP_CRASH_TOPIC" build > sim.log 2>&1 \
             || { grep -E "error:" sim.log | sort -u; tail -n 60 sim.log; exit 1; }
           cd build/Debug-iphonesimulator && zip -qry ../../IchthusPlus-simulator.zip IchthusPlus.app
 
@@ -104,6 +106,12 @@ jobs:
           # nog twee keer opstarten (warm, zoals je hem normaal opent) en de opstarttijd tonen
           for i in 1 2; do xcrun simctl terminate "$UDID" nl.cijferpacks.app; sleep 2; xcrun simctl launch "$UDID" nl.cijferpacks.app; sleep 8; done
           xcrun simctl spawn "$UDID" log show --last 3m --predicate 'eventMessage CONTAINS "opstarttijd"' --style compact | tee shots/opstarttijd.txt || true
+          # foutmeldingen testen: de app echt laten crashen, daarna opnieuw openen (dan stuurt hij de melding via ntfy)
+          xcrun simctl terminate "$UDID" nl.cijferpacks.app || true
+          xcrun simctl launch "$UDID" nl.cijferpacks.app -wspCrashTest; sleep 10
+          xcrun simctl launch "$UDID" nl.cijferpacks.app; sleep 12
+          C=$(xcrun simctl get_app_container "$UDID" nl.cijferpacks.app data)/Documents/crash.txt
+          if [ -s "$C" ]; then echo "crash.txt nog niet verstuurd:"; head -c 400 "$C"; else echo "Foutmelding verstuurd (crash.txt is leeg)"; fi | tee shots/crashtest.txt
 
       - uses: actions/upload-artifact@v4
         with:
