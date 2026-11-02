@@ -105,6 +105,16 @@ struct WidgetView: View {
 
     @ViewBuilder var content: some View {
         switch family {
+        case .accessoryInline:
+            // één regel boven de klok op het toegangsscherm
+            Text(e.vak == "Rooster" || e.vak == "Geen lessen meer" ? "Ichthus+" : "\(e.when.replacingOccurrences(of: "STRAKS · ", with: "")) \(e.vak)\(e.uit ? " valt uit" : e.lok.isEmpty ? "" : " · " + e.lok)")
+        case .accessoryCircular:
+            VStack(spacing: 0) {
+                Text(e.vak).font(.system(size: 15, weight: .heavy)).minimumScaleFactor(0.5).lineLimit(1)
+                Text(e.uit ? "UIT" : e.lok).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.6)
+            }
+            .padding(4)
+            .modifier(CircleBackground())
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 1) {
                 Text(e.when).font(.system(size: 11, weight: .bold)).widgetAccentable()
@@ -132,14 +142,25 @@ struct WidgetView: View {
     }
 }
 
-/* iOS 17 wil de achtergrond via containerBackground; oudere versies gewoon met padding */
+/* iOS 17 wil de achtergrond via containerBackground; oudere versies gewoon met padding (niet op het toegangsscherm) */
 struct Background: ViewModifier {
+    @Environment(\.widgetFamily) var family
     func body(content: Content) -> some View {
+        let lock = [WidgetFamily.accessoryInline, .accessoryCircular, .accessoryRectangular].contains(family)
         if #available(iOS 17, *) {
-            content.containerBackground(for: .widget) { Color(UIColor.systemBackground) }
+            content.containerBackground(for: .widget) { lock ? Color.clear : Color(UIColor.systemBackground) }
+        } else if lock {
+            content
         } else {
             content.padding()
         }
+    }
+}
+
+/* rond widgetje op het toegangsscherm: de standaard doorschijnende achtergrond */
+struct CircleBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        ZStack { AccessoryWidgetBackground(); content }
     }
 }
 
@@ -153,8 +174,8 @@ struct IchthusWidget: Widget {
     }
 
     var families: [WidgetFamily] {
-        if #available(iOS 16, *) { return [.systemSmall, .systemMedium, .accessoryRectangular] }
-        return [.systemSmall, .systemMedium]
+        // ook op het toegangsscherm: onder de klok (rechthoek of rondje) en één regel erboven
+        [.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular, .accessoryInline]
     }
 }
 

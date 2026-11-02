@@ -55,5 +55,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" IchthusPlus.ipa --title "Ichthus+ iPhone ${GITHUB_REF_NAME#v}" \
-            --notes "Installeren via SideStore: My Apps, plus, kies IchthusPlus.ipa."
+          # bron voor SideStore (Sources → +): https://github.com/<repo>/releases/latest/download/source.json
+          V="${GITHUB_REF_NAME#v}"
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/IchthusPlus.ipa"
+          ICON="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/IchthusPlus/Assets.xcassets/AppIcon.appiconset/icon.png"
+          jq -n --arg v "$V" --arg url "$URL" --arg icon "$ICON" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson size "$(stat -f%z IchthusPlus.ipa)" '{
+              name: "Ichthus+", identifier: "nl.cijferpacks.source", iconURL: $icon,
+              apps: [{ name: "Ichthus+", bundleIdentifier: "nl.cijferpacks.app", developerName: "Ichthus+",
+                localizedDescription: "Cijfers, rooster en huiswerk van het leerlingenportaal in één app.",
+                iconURL: $icon, tintColor: "FFD34D",
+                versions: [{ version: $v, date: $date, downloadURL: $url, size: $size, minOSVersion: "15.0" }],
+                appPermissions: { entitlements: [], privacy: {} } }],
+              news: [] }' > source.json
+          gh release create "$GITHUB_REF_NAME" IchthusPlus.ipa source.json --title "Ichthus+ iPhone $V" \
+            --notes "Installeren via SideStore: My Apps, plus, kies IchthusPlus.ipa. Of voeg de bron toe in SideStore (Sources)."

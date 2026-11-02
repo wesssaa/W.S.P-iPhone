@@ -2724,6 +2724,32 @@
     try { if (Native && Native.setIcon) Native.setIcon(k === 'default' ? 'Default' : k.charAt(0).toUpperCase() + k.slice(1)); } catch (e) {}
     buzz(12);
   }
+  /* iPhone met een gratis Apple ID: de app werkt 7 dagen, dan moet SideStore hem vernieuwen. Uitleg om dat 's nachts vanzelf te laten doen */
+  const expiryMs = () => { try { return Native && Native.signExpiry ? +Native.signExpiry() || 0 : 0; } catch (e) { return 0; } };
+  const expiryText = () => {
+    const ms = expiryMs();
+    if (!ms) return 'Elke paar nachten vanzelf via SideStore';
+    const days = Math.floor((ms - Date.now()) / 864e5), d = new Date(ms);
+    return (days < 1 ? 'Verloopt vandaag' : days === 1 ? 'Nog 1 dag' : 'Nog ' + days + ' dagen') + ' geldig (tot ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ')';
+  };
+  function sideStoreSheet() {
+    const m = document.createElement('div');
+    m.className = 'modal';
+    m.innerHTML = `<div class="sheet"><h3>Automatisch vernieuwen</h3>
+      <p class="small" style="color:var(--fg2)">Met een gratis Apple ID werkt Ichthus+ 7 dagen. Daarna moet SideStore hem vernieuwen. ${esc(expiryText())}.</p>
+      <p class="small" style="color:var(--fg2)">Laat het 's nachts vanzelf gebeuren met de app <b>Opdrachten</b>:</p>
+      <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
+        <li>Open <b>Opdrachten</b> → <b>Automatisering</b> → <b>+</b> → <b>Tijdstip</b>.</li>
+        <li>Kies <b>00:02</b>, herhaal <b>Wekelijks</b> en vink twee dagen aan (bijv. <b>maandag</b> en <b>donderdag</b>). Kies <b>Voer direct uit</b>.</li>
+        <li><b>Nieuwe lege opdracht</b>, en voeg toe: <b>Stel VPN in</b> → <b>LocalDevVPN</b> → <b>Verbind</b>.</li>
+        <li><b>Wacht</b> → 3 seconden.</li>
+        <li>Zoek <b>SideStore</b> en kies <b>Refresh All Apps</b>.</li>
+        <li><b>Stel VPN in</b> → <b>LocalDevVPN</b> → <b>Verbreek</b>.</li></ol>
+      <p class="small muted">SideStore doet het op de achtergrond; iOS legt hem daarna vanzelf weer stil, je hoeft niks af te sluiten. LocalDevVPN mag ook altijd aan blijven (hij werkt alleen binnen je telefoon en kost bijna geen batterij); dan kun je stap 3 en 6 overslaan. Je telefoon moet om 00:02 wel aan staan en internet hebben.</p>
+      <button class="btn ghost" data-a="close">Sluiten</button></div>`;
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
+    app.appendChild(m);
+  }
   /* widget "volgende les": de app vraagt Android hem neer te zetten, anders uitleg hoe je hem zelf toevoegt */
   function widgetSheet() {
     const m = document.createElement('div');
@@ -3231,7 +3257,7 @@
     return job.p;
   };
   async function fetchRelease() {
-    const j = await releaseJson(), asset = (j.assets || []).find(a => /\.apk$/i.test(a.name));
+    const j = await releaseJson(), asset = (j.assets || []).find(a => (IOS ? /\.ipa$/i : /\.apk$/i).test(a.name));
     return asset ? { v: String(j.tag_name).replace(/^v/, ''), url: asset.browser_download_url, notes: j.body || '', size: asset.size } : null;
   }
   /* manual: via de knop in Meer (dan altijd tonen, ook als je hem had uitgesteld); test: ook als het geen nieuwere versie is */
@@ -3282,11 +3308,16 @@
     go.onclick = () => {
       if (!canUpdate()) { msg.textContent = 'Updaten kan alleen in de app.'; return; }
       go.disabled = true;
-      msg.textContent = 'Downloaden…';
+      msg.textContent = IOS ? 'SideStore openen…' : 'Downloaden…';
       Native.installUpdate(u.url);
     };
     window.__cpUpd = (st, pct) => {
-      if (st === 'busy') msg.textContent = 'Downloaden… ' + pct + '%';
+      /* iPhone: SideStore installeert de update */
+      if (st === 'sidestore' || st === 'browser') {
+        go.disabled = false;
+        msg.textContent = st === 'sidestore' ? 'Tik in SideStore op Installeren. Daarna open je Ichthus+ gewoon weer.' : 'SideStore niet gevonden: de download staat in Safari. Zet hem via SideStore → My Apps → + erop.';
+      }
+      else if (st === 'busy') msg.textContent = 'Downloaden… ' + pct + '%';
       else if (st === 'ask') {
         msg.textContent = 'Tik in het venster van Android op Updaten.';
         /* venster weggeklikt of niet verschenen (geen antwoord van Android): knop na een paar seconden weer bruikbaar */
@@ -3365,7 +3396,7 @@
     const draw = () => {
       const perm = !can();
       m.innerHTML = `<div class="sheet"><h3>Eerst bijwerken</h3>
-        <p class="small" style="color:var(--fg2)">Je hebt versie ${esc(appVer())}, de nieuwste is <b>${esc(u.v)}</b>. Ichthus+ werkt zichzelf nu eerst bij, dan heb je meteen alles wat nieuw is.</p>
+        <p class="small" style="color:var(--fg2)">Je hebt versie ${esc(appVer())}, de nieuwste is <b>${esc(u.v)}</b>. ${IOS ? 'SideStore gaat zo open om hem bij te werken' : 'Ichthus+ werkt zichzelf nu eerst bij'}, dan heb je meteen alles wat nieuw is.</p>
         ${perm ? `<p class="small" style="color:var(--fg2)">Daarvoor moet je één keer toestaan dat Ichthus+ <b>apps mag installeren</b> (alleen voor updates van Ichthus+ zelf):</p>
           <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px"><li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar Ichthus+, het bijwerken begint dan vanzelf.</li></ol>` : ''}
         <div class="small" data-updmsg style="text-align:center;font-weight:700;color:var(--accent-text)"></div>
@@ -3392,12 +3423,19 @@
       if (started || finished) return;
       started = true;
       draw();
-      msg('Downloaden…');
+      msg(IOS ? 'SideStore openen…' : 'Downloaden…');
       Native.installUpdate(u.url);
     };
     onUpd = (st, pct) => {
       if (finished) return;
-      if (st === 'busy') msg('Downloaden… ' + pct + '%');
+      /* iPhone: SideStore neemt het over; daarna mag je verder (de update komt binnen als SideStore klaar is) */
+      if (st === 'sidestore' || st === 'browser') {
+        started = false;
+        msg(st === 'sidestore' ? 'Tik in SideStore op Installeren en open Ichthus+ daarna weer.' : 'SideStore niet gevonden: de download staat in Safari.');
+        const box = m.querySelector('[data-stuck]');
+        if (box) { box.innerHTML = '<div class="row"><button class="btn ghost" data-a="on" style="flex:1">Verder met deze versie</button></div>'; box.querySelector('[data-a=on]').onclick = go; }
+      }
+      else if (st === 'busy') msg('Downloaden… ' + pct + '%');
       /* het venster van Android kan wegvallen zonder antwoord (bijv. met de thuisknop): dan toch een uitweg */
       else if (st === 'ask') { msg('Tik in het venster van Android op Updaten.'); setTimeout(() => { if (!finished && started) choices('Geen venster gezien of weggeklikt?'); }, 6000); }
       else if (st === 'perm') { started = false; draw(); }
@@ -3731,6 +3769,7 @@
           <button class="setrow" data-a="widget" style="padding-top:12px"><span class="sr-t"><b>Zien wat je hierna hebt</b><small>Widget op je ${IOS ? 'beginscherm' : 'startscherm'} met je volgende les, lokaal en uitval</small></span><span class="go">›</span></button>
           ${ns && ns.n_mob_r_mode ? `<button class="setrow" data-a="data" style="padding-top:12px"><span class="sr-t"><b>Datagebruik</b><small>Hoe vaak de app kijkt op wifi en op 4G/5G, met een schatting</small></span><span class="go">›</span></button>` : ''}
           <button class="setrow" data-a="tabs" style="padding-top:12px"><span class="sr-t"><b>Tabbalk</b><small>${visibleTabs().map(k => TABS.find(t => t.k === k).label).join(' · ')}</small></span><span class="go">›</span></button>
+          ${IOS ? `<button class="setrow" data-a="sidestore" style="padding-top:12px"><span class="sr-t"><b>Automatisch vernieuwen</b><small>${expiryText()}</small></span><span class="go">›</span></button>` : ''}
           <div class="setting-h" style="margin:16px 0 10px;font-size:15px">Geluid bij cijfers</div>
           <div class="seg">${[[true, 'Aan'], [false, 'Uit']].map(([k, l]) => `<button class="${soundOn === k ? 'on' : ''}" data-snd2="${k}">${l}</button>`).join('')}</div>
           ${soundOn ? `<div class="vol"><span aria-hidden="true">🔈</span><input type="range" min="0.05" max="1" step="0.05" value="${volume}" id="snd-vol" aria-label="Volume"><b id="snd-vol-v">${Math.round(volume * 100)}%</b></div>
@@ -3761,6 +3800,8 @@
       if (S.devOn) bindDev(draw);
       main.querySelector('[data-a=themes]').onclick = () => openThemes(draw);
       main.querySelector('[data-a=tabs]').onclick = () => openTabs(draw);
+      const ss = main.querySelector('[data-a=sidestore]');
+      if (ss) ss.onclick = sideStoreSheet;
       const db = main.querySelector('[data-a=data]');
       if (db) db.onclick = () => openData(draw);
       const wb = main.querySelector('[data-a=widget]');

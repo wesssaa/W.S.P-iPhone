@@ -4,15 +4,15 @@ import WebKit
 /*
  window.CijferApp voor app.js, net als de JavascriptInterface op Android. Android geeft meteen een antwoord terug
  (bijv. getZermelo()); WKWebView kan dat alleen via prompt(): de app vangt die op en geeft het antwoord als tekst terug.
- Alleen wat de iPhone-app echt kan staat erin: app.js kijkt zelf of een functie bestaat (geen updates via de app,
- geen batterij-instelling).
+ Alleen wat de iPhone-app echt kan staat erin: app.js kijkt zelf of een functie bestaat (geen batterij-instelling;
+ updates installeert SideStore).
  */
 final class Bridge {
     static let marker = "__cijferapp__"
     static let methods = ["vibrate", "open", "logout", "relogin", "setTheme", "getZermelo", "setZermelo", "zermeloSso",
                           "getAgenda", "appVersion", "getIcon", "setIcon", "getOwnReminders", "setOwnReminders", "setRemOwner",
                           "getSettings", "setSetting", "onMobile", "openNotifSettings", "testNotify", "devNotify",
-                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache"]
+                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache", "fetchRelease", "installUpdate", "signExpiry"]
 
     static let shimJS = """
     (function () {
@@ -110,6 +110,15 @@ final class Bridge {
             if let d = s(0).data(using: .utf8), let a = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] { HomeworkReminders.mergeItems(a) }
         case "nextReminders":
             return encode(HomeworkReminders.next())
+        case "fetchRelease":
+            Updates.fetch { json in
+                let arg = json.flatMap { j in (try? JSONSerialization.data(withJSONObject: j, options: .fragmentsAllowed)).flatMap { String(data: $0, encoding: .utf8) } } ?? "null"
+                self.c?.js("window.__cpRel && window.__cpRel(\(arg))")
+            }
+        case "signExpiry":
+            return encode(Updates.signExpiry())
+        case "installUpdate":
+            Updates.install(s(0)) { st in self.c?.js("window.__cpUpd && window.__cpUpd('\(st)', 0)") }
         case "setRoosterCache":
             if let d = s(0).data(using: .utf8), let a = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] { WidgetData.saveLessons(a, accent: s(1)) }
         default:
