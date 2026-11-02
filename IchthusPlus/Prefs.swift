@@ -14,7 +14,8 @@ enum Prefs {
 
     /* alles van deze leerling weg bij uitloggen; thema en icoon blijven staan */
     static func clearAccount() {
-        for k in ["zm_school", "zm_token", "zm_sso", "zm_url"] { d.removeObject(forKey: k) }
+        for k in ["zm_school", "zm_token", "zm_sso", "zm_url", "zm_snap", "known", "grades_full_t", "last_r", "last_c", "last_h",
+                  "hw_known", "hw_items", "hw_rules", "rooster_key", "rooster_snap", "w_lessons"] { d.removeObject(forKey: k) }
     }
 }
 

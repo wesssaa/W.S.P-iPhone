@@ -7,6 +7,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        _ = Checker.monitor // wifi of 4G/5G bijhouden
+        Background.register()
+        Background.schedule()
         let w = UIWindow(frame: UIScreen.main.bounds)
         w.rootViewController = WebViewController()
         w.makeKeyAndVisible()
@@ -18,6 +21,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
     func applicationDidBecomeActive(_ application: UIApplication) {
         Reminders.advance()
         Reminders.schedule()
+        HomeworkReminders.schedule()
+        Background.refreshAllowed()
     }
 
     /* ook een melding laten zien als de app open is (zoals op Android) */

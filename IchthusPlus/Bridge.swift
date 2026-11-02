@@ -5,12 +5,14 @@ import WebKit
  window.CijferApp voor app.js, net als de JavascriptInterface op Android. Android geeft meteen een antwoord terug
  (bijv. getZermelo()); WKWebView kan dat alleen via prompt(): de app vangt die op en geeft het antwoord als tekst terug.
  Alleen wat de iPhone-app echt kan staat erin: app.js kijkt zelf of een functie bestaat (geen updates via de app,
- geen batterij-instelling, nog geen widget en meldingen over cijfers).
+ geen batterij-instelling).
  */
 final class Bridge {
     static let marker = "__cijferapp__"
     static let methods = ["vibrate", "open", "logout", "relogin", "setTheme", "getZermelo", "setZermelo", "zermeloSso",
-                          "getAgenda", "appVersion", "getIcon", "setIcon", "getOwnReminders", "setOwnReminders", "setRemOwner"]
+                          "getAgenda", "appVersion", "getIcon", "setIcon", "getOwnReminders", "setOwnReminders", "setRemOwner",
+                          "getSettings", "setSetting", "onMobile", "openNotifSettings", "testNotify", "devNotify",
+                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache"]
 
     static let shimJS = """
     (function () {
@@ -62,6 +64,7 @@ final class Bridge {
             Prefs.set("zm_school", s(0))
             Prefs.set("zm_token", s(1))
             Prefs.set("zm_sso", false)
+            Prefs.d.removeObject(forKey: "zm_snap")
         case "zermeloSso":
             let url = s(0), silent = b(1)
             guard url.hasPrefix("https://"), let u = URL(string: url) else { break }
@@ -83,6 +86,32 @@ final class Bridge {
             Reminders.setOwn(s(0))
         case "setRemOwner":
             return encode(Reminders.setOwner(s(0)))
+        case "getSettings":
+            return encode(Checker.settingsJSON())
+        case "setSetting":
+            Checker.set(s(0), s(1))
+        case "onMobile":
+            return encode(Checker.onMobile)
+        case "openNotifSettings":
+            let s: String
+            if #available(iOS 16, *) { s = UIApplication.openNotificationSettingsURLString } else { s = UIApplication.openSettingsURLString }
+            let u = URL(string: s)!
+            DispatchQueue.main.async { UIApplication.shared.open(u) }
+        case "testNotify":
+            Reminders.askPermission()
+            Checker.testNotify("grades")
+        case "devNotify":
+            let type = s(0).filter { $0.isLetter }, delay = max(0, Double(s(1)) ?? 0)
+            Reminders.askPermission()
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { Checker.testNotify(type.isEmpty ? "grades" : type) }
+        case "setHwRules":
+            HomeworkReminders.setRules(s(0))
+        case "setHwItems":
+            if let d = s(0).data(using: .utf8), let a = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] { HomeworkReminders.mergeItems(a) }
+        case "nextReminders":
+            return encode(HomeworkReminders.next())
+        case "setRoosterCache":
+            if let d = s(0).data(using: .utf8), let a = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] { WidgetData.saveLessons(a, accent: s(1)) }
         default:
             break
         }

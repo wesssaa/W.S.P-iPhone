@@ -25,6 +25,9 @@ targets:
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIViewControllerBasedStatusBarAppearance: true
+        # af en toe op de achtergrond kijken naar nieuwe cijfers, huiswerk en roosterwijzigingen
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [nl.cijferpacks.app.refresh]
         UILaunchScreen:
           UIColorName: LaunchBackground
           UIImageName: LaunchMark

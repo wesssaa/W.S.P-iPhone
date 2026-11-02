@@ -113,6 +113,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "cpReady", Self.isPortal(message.frameInfo.request.url ?? web.url) || web.url == Self.shellURL else { return }
+        // wat je in de app al ziet, hoeft later geen melding meer te geven; meteen ook de sessie vasthouden
+        Task.detached { try? await Checker.runAll(notify: false) }
         // zacht overvloeien van het opstartscherm naar de app
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
             UIView.animate(withDuration: 0.22) { self.web.alpha = 1 }
