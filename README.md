@@ -36,11 +36,15 @@ Deze "VPN" werkt alleen binnen je eigen telefoon: er gaat niks via internet naar
 **Mac**
 - Download **[iloader voor Mac](https://github.com/nab138/iloader/releases/latest/download/iloader-darwin-universal.dmg)** (iTunes is niet nodig).
 
-> **Waarom iTunes?** Windows weet uit zichzelf niet hoe het via de kabel met een iPhone moet praten. iTunes installeert de stuurprogramma's van Apple die daarvoor nodig zijn. iloader gebruikt die om je iPhone te herkennen, SideStore erop te zetten en een "pairing file" te maken (zodat SideStore daarna zonder computer kan vernieuwen). Je hoeft iTunes zelf nooit te openen, hij moet er alleen op staan. Een Mac heeft dit al ingebouwd.
+#### Waarom iTunes?
 
-> **Mijn virusscanner zegt dat iloader een virus is?**
-> Dat komt vaker voor: iloader is een onbekend programma dat met je iPhone praat, en dan slaan sommige virusscanners alarm. Wil je het zeker weten? Ga naar **[virustotal.com](https://www.virustotal.com)**, kies **File** en upload het gedownloade bestand. Daar controleren ruim 60 virusscanners het tegelijk. Geven er maar een paar onbekende scanners een melding, dan is het vrijwel zeker vals alarm.
-> Download iloader alleen via de links hierboven (de officiële pagina van iloader op GitHub), nooit van een andere site.
+Windows weet uit zichzelf niet hoe het via de kabel met een iPhone moet praten. iTunes installeert de stuurprogramma's van Apple die daarvoor nodig zijn. iloader gebruikt die om je iPhone te herkennen, SideStore erop te zetten en een "pairing file" te maken (zodat SideStore daarna zonder computer kan vernieuwen). Je hoeft iTunes zelf nooit te openen, hij moet er alleen op staan. Een Mac heeft dit al ingebouwd.
+
+#### Mijn virusscanner zegt dat iloader een virus is?
+
+Dat komt vaker voor: iloader is een onbekend programma dat met je iPhone praat, en dan slaan sommige virusscanners alarm. Wil je het zeker weten? Ga naar **[virustotal.com](https://www.virustotal.com)**, kies **File** en upload het gedownloade bestand. Daar controleren ruim 60 virusscanners het tegelijk. Geven er maar een paar onbekende scanners een melding, dan is het vrijwel zeker vals alarm.
+
+**Download iloader alleen via de links hierboven** (de officiële pagina van iloader op GitHub), nooit van een andere site.
 
 ### Stap 3 · SideStore op je iPhone zetten
 
