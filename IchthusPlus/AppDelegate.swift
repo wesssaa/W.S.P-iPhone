@@ -4,8 +4,10 @@ import UserNotifications
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var window: UIWindow?
+    static let launched = Date() // om de opstarttijd te meten (staat in het logboek)
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        _ = Self.launched
         UNUserNotificationCenter.current().delegate = self
         _ = Checker.monitor // wifi of 4G/5G bijhouden
         Background.register()
