@@ -75,9 +75,6 @@ Je telefoon moet om 02:00 aan staan, internet hebben en LocalDevVPN moet aan sta
 
 W.S.P kijkt zelf of er een nieuwe versie is. Is die er, dan zie je **Nieuwe versie**: tik op **Nu bijwerken**, dan opent SideStore en tik je op **Installeren**. Je cijfers, reminders en instellingen blijven staan.
 
-Liever updates in SideStore zelf zien? Voeg de bron toe: **SideStore → Sources → +** en plak
-`https://github.com/wesssaa/W.S.P-iPhone/releases/latest/download/source.json`
-
 ## Problemen?
 
 - **W.S.P opent niet meer** – de 7 dagen zijn om. Zet LocalDevVPN aan, open SideStore → My Apps en tik op het dagen-getal naast W.S.P.

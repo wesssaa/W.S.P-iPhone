@@ -55,21 +55,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # bron voor SideStore (Sources → +): https://github.com/<repo>/releases/latest/download/source.json
           V="${GITHUB_REF_NAME#v}"
-          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/WSP.ipa"
-          ICON="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/IchthusPlus/Assets.xcassets/AppIcon.appiconset/icon.png"
-          jq -n --arg v "$V" --arg url "$URL" --arg icon "$ICON" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --argjson size "$(stat -f%z WSP.ipa)" '{
-              name: "W.S.P", identifier: "nl.cijferpacks.source", iconURL: $icon,
-              apps: [{ name: "W.S.P", bundleIdentifier: "nl.cijferpacks.app", developerName: "W.S.P",
-                localizedDescription: "Cijfers, rooster en huiswerk van het leerlingenportaal in één app.",
-                iconURL: $icon, tintColor: "FFD34D",
-                versions: [{ version: $v, date: $date, downloadURL: $url, size: $size, minOSVersion: "15.0" }],
-                appPermissions: { entitlements: [], privacy: {} } }],
-              news: [] }' > source.json
-          gh release create "$GITHUB_REF_NAME" WSP.ipa source.json --title "W.S.P iPhone $V" \
-            --notes "Installeren via SideStore: My Apps, plus, kies WSP.ipa. Of voeg de bron toe in SideStore (Sources)."
+          gh release create "$GITHUB_REF_NAME" WSP.ipa --title "W.S.P iPhone $V" \
+            --notes "Installeren via SideStore: My Apps, plus, kies WSP.ipa. De uitleg staat op de hoofdpagina."
 
   # zonder iPhone testen: de app in de iPhone-simulator van de Mac starten en schermafbeeldingen maken.
   # Ook een simulator-build (IchthusPlus-simulator.zip) om te uploaden naar appetize.io, dan bedien je hem in je browser.
