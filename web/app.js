@@ -2733,15 +2733,12 @@
     return (days < 1 ? 'Verloopt vandaag' : days === 1 ? 'Nog 1 dag' : 'Nog ' + days + ' dagen') + ' geldig (tot ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ')';
   };
   const refreshSteps = () => `<p class="small" style="color:var(--fg2)"><span class="tag">VERPLICHT</span> Met een gratis Apple ID werkt Ichthus+ 7 dagen. Daarna moet SideStore hem vernieuwen, anders opent hij niet meer. ${esc(expiryText())}.</p>
-      <p class="small" style="color:var(--fg2)">Laat het 's nachts vanzelf gebeuren met de app <b>Opdrachten</b>:</p>
+      <p class="small" style="color:var(--fg2)">Laat <b>LocalDevVPN</b> gewoon aan staan (hij werkt alleen binnen je telefoon en kost bijna geen batterij). Laat het vernieuwen dan 's nachts vanzelf gebeuren met de app <b>Opdrachten</b>, in 3 stappen:</p>
       <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
         <li>Open <b>Opdrachten</b> → <b>Automatisering</b> → <b>+</b> → <b>Tijdstip</b>.</li>
-        <li>Kies <b>02:00</b>, herhaal <b>Wekelijks</b> en vink twee dagen aan (bijv. <b>maandag</b> en <b>donderdag</b>). Kies <b>Voer direct uit</b>.</li>
-        <li><b>Nieuwe lege opdracht</b>, en voeg toe: <b>Stel VPN in</b> → <b>LocalDevVPN</b> → <b>Verbind</b>.</li>
-        <li><b>Wacht</b> → 3 seconden.</li>
-        <li>Zoek <b>SideStore</b> en kies <b>Refresh All Apps</b>.</li>
-        <li><b>Stel VPN in</b> → <b>LocalDevVPN</b> → <b>Verbreek</b>.</li></ol>
-      <p class="small muted">SideStore doet het op de achtergrond; iOS legt hem daarna vanzelf weer stil, je hoeft niks af te sluiten. LocalDevVPN mag ook altijd aan blijven (hij werkt alleen binnen je telefoon en kost bijna geen batterij); dan kun je stap 3 en 6 overslaan. Je telefoon moet om 02:00 wel aan staan en internet hebben.</p>`;
+        <li>Kies <b>02:00</b>, herhaal <b>Wekelijks</b> en vink twee dagen aan (bijv. <b>maandag</b> en <b>donderdag</b>). Kies <b>Voer direct uit</b> → <b>Volgende</b>.</li>
+        <li>Zoek <b>SideStore</b>, kies <b>Refresh All Apps</b> en tik op <b>Gereed</b>.</li></ol>
+      <p class="small muted">SideStore doet het op de achtergrond; iOS legt hem daarna vanzelf weer stil, je hoeft niks af te sluiten. Je telefoon moet om 02:00 wel aan staan en internet hebben.</p>`;
   const openShortcuts = () => { try { Native.open('shortcuts://'); } catch (e) {} };
   function sideStoreSheet() {
     const m = document.createElement('div');
