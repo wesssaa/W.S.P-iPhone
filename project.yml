@@ -1,0 +1,45 @@
+# Xcode-project voor Ichthus+ op iPhone. Het .xcodeproj maakt GitHub Actions hier zelf van (xcodegen generate),
+# dus er hoeft geen Mac aan te pas te komen. Versie: MARKETING_VERSION hieronder.
+name: IchthusPlus
+options:
+  bundleIdPrefix: nl.cijferpacks
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  IchthusPlus:
+    type: application
+    platform: iOS
+    sources:
+      - path: IchthusPlus
+      # app.js, lettertypes en plaatjes: dezelfde bestanden als in de Android-app (sync.ps1 kopieert ze hierheen)
+      - path: web
+        type: folder
+        buildPhase: resources
+    info:
+      path: IchthusPlus/Info.plist
+      properties:
+        CFBundleDisplayName: Ichthus+
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIViewControllerBasedStatusBarAppearance: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchMark
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nl.cijferpacks.app
+        PRODUCT_NAME: IchthusPlus
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Kaal AppIcon-Zwart AppIcon-Wit"
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        # niet ondertekend bouwen: SideStore ondertekent de app zelf met je eigen Apple ID
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""

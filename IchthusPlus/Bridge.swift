@@ -1,0 +1,125 @@
+import UIKit
+import WebKit
+
+/*
+ window.CijferApp voor app.js, net als de JavascriptInterface op Android. Android geeft meteen een antwoord terug
+ (bijv. getZermelo()); WKWebView kan dat alleen via prompt(): de app vangt die op en geeft het antwoord als tekst terug.
+ Alleen wat de iPhone-app echt kan staat erin: app.js kijkt zelf of een functie bestaat (geen updates via de app,
+ geen batterij-instelling, nog geen widget en meldingen).
+ */
+final class Bridge {
+    static let marker = "__cijferapp__"
+    static let methods = ["vibrate", "open", "logout", "relogin", "setTheme", "getZermelo", "setZermelo", "zermeloSso",
+                          "getAgenda", "appVersion", "getIcon", "setIcon"]
+
+    static let shimJS = """
+    (function () {
+      if (location.hostname !== '\(WebViewController.portalHost)') return;
+      var call = function (m, a) {
+        var r = window.prompt('\(marker)', JSON.stringify({ m: m, a: a }));
+        if (r == null || r === '') return undefined;
+        try { return JSON.parse(r); } catch (e) { return undefined; }
+      };
+      var o = {};
+      \(try! String(data: JSONSerialization.data(withJSONObject: methods), encoding: .utf8)!).forEach(function (m) {
+        o[m] = function () { return call(m, Array.prototype.slice.call(arguments)); };
+      });
+      window.CijferApp = o;
+    })();
+    """
+
+    weak var c: WebViewController?
+    init(controller: WebViewController) { c = controller }
+
+    /* één aanroep uit app.js: {"m": naam, "a": [argumenten]} → antwoord als JSON (leeg = geen antwoord) */
+    func handle(_ json: String) -> String {
+        guard let d = json.data(using: .utf8),
+              let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+              let m = o["m"] as? String else { return "" }
+        let a = o["a"] as? [Any] ?? []
+        let s = { (i: Int) -> String in i < a.count ? (a[i] as? String ?? (a[i] as? NSNumber)?.stringValue ?? "") : "" }
+        let b = { (i: Int) -> Bool in i < a.count ? (a[i] as? Bool ?? false) : false }
+        switch m {
+        case "vibrate":
+            let ms = Double(s(0)) ?? 10
+            DispatchQueue.main.async { UIImpactFeedbackGenerator(style: ms > 30 ? .medium : .light).impactOccurred() }
+        case "open":
+            if let u = URL(string: s(0)), ["http", "https", "mailto", "tel"].contains(u.scheme?.lowercased() ?? "") {
+                DispatchQueue.main.async { UIApplication.shared.open(u) }
+            }
+        case "logout":
+            DispatchQueue.main.async { self.logout() }
+        case "relogin":
+            DispatchQueue.main.async { self.c?.loadStart() }
+        case "setTheme":
+            let mode = s(0) == "dark" ? "dark" : "light"
+            Prefs.theme = mode
+            DispatchQueue.main.async { self.c?.applyTheme(mode) }
+        case "getZermelo":
+            return encode(["school": Prefs.string("zm_school"), "token": Prefs.string("zm_token"), "sso": Prefs.d.bool(forKey: "zm_sso")]
+                .jsonString)
+        case "setZermelo":
+            Prefs.set("zm_school", s(0))
+            Prefs.set("zm_token", s(1))
+            Prefs.set("zm_sso", false)
+        case "zermeloSso":
+            let url = s(0), silent = b(1)
+            guard url.hasPrefix("https://"), let u = URL(string: url) else { break }
+            DispatchQueue.main.async { if let c = self.c { ZermeloLogin.start(c, url: u, silent: silent) } }
+        case "getAgenda":
+            Agenda.refresh { changed in if changed { self.c?.js("window.__cpAgenda && window.__cpAgenda()") } }
+            return encode(Prefs.string("agenda", "[]"))
+        case "appVersion":
+            return encode(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
+        case "getIcon":
+            return encode(Icons.current())
+        case "setIcon":
+            let name = s(0)
+            DispatchQueue.main.async { Icons.set(name) }
+        default:
+            break
+        }
+        return ""
+    }
+
+    private func encode(_ v: Any) -> String {
+        (try? JSONSerialization.data(withJSONObject: v, options: .fragmentsAllowed)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+
+    /* alles van deze leerling weg: Zermelo-koppeling en de inlog (cookies). Thema en icoon blijven staan. */
+    private func logout() {
+        Prefs.clearAccount()
+        let store = WKWebsiteDataStore.default()
+        store.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
+            let zermelo = records.filter { $0.displayName.contains("zportal.nl") }
+            store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), for: zermelo) {
+                store.removeData(ofTypes: [WKWebsiteDataTypeCookies], modifiedSince: .distantPast) {
+                    self.c?.loadStart()
+                }
+            }
+        }
+    }
+}
+
+extension Dictionary where Key == String {
+    var jsonString: String {
+        (try? JSONSerialization.data(withJSONObject: self)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+}
+
+/* app-icoon wisselen (iOS laat daarbij zelf even een melding zien) */
+enum Icons {
+    // naam in app.js → alternatief icoon in de app (nil = het standaard-icoon, zwart zonder tekst)
+    static let map: [String: String?] = ["zwartkaal": nil, "kaal": "AppIcon-Kaal", "zwart": "AppIcon-Zwart", "default": "AppIcon-Wit"]
+
+    static func current() -> String {
+        let alt = UIApplication.shared.alternateIconName
+        return map.first { $0.value == alt }?.key ?? "zwartkaal"
+    }
+
+    static func set(_ name: String) {
+        guard UIApplication.shared.supportsAlternateIcons, let alt = map[name.lowercased()] else { return }
+        if UIApplication.shared.alternateIconName == alt { return }
+        UIApplication.shared.setAlternateIconName(alt, completionHandler: nil)
+    }
+}

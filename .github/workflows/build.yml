@@ -1,0 +1,53 @@
+# Bouwt Ichthus+ voor iPhone op een Mac van GitHub en maakt er een (niet-ondertekende) .ipa van.
+# SideStore ondertekent hem daarna zelf met je eigen Apple ID.
+# - elke push: test-build, de .ipa staat bij de run onder "Artifacts"
+# - een tag v* (bijv. v0.1.0): ook een release met de .ipa erbij
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode-project maken
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Bouwen
+        run: |
+          xcodebuild -project IchthusPlus.xcodeproj -target IchthusPlus -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > build.log 2>&1 \
+            || { grep -E "error:" build.log | sort -u; tail -n 60 build.log; exit 1; }
+          grep -E "warning:" build.log | sort -u | head -n 30 || true
+          tail -n 5 build.log
+          test -d build/Release-iphoneos/IchthusPlus.app
+
+      - name: .ipa maken
+        run: |
+          mkdir -p Payload
+          cp -R build/Release-iphoneos/IchthusPlus.app Payload/
+          zip -qry IchthusPlus.ipa Payload
+          ls -l IchthusPlus.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IchthusPlus-ipa
+          path: IchthusPlus.ipa
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" IchthusPlus.ipa --title "Ichthus+ iPhone ${GITHUB_REF_NAME#v}" --notes "Installeren via SideStore: My Apps, plus, kies IchthusPlus.ipa."
