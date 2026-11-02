@@ -32,6 +32,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         uc.addUserScript(WKUserScript(source: Bridge.shimJS, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         uc.addUserScript(WKUserScript(source: Self.appScript(), injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         uc.add(WeakHandler(self), name: "cpReady")
+        uc.add(WeakHandler(self), name: "cpRetry")
 
         web = WKWebView(frame: .zero, configuration: cfg)
         web.navigationDelegate = self
@@ -119,6 +120,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     // MARK: - zichtbaar maken
 
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "cpRetry" { web.alpha = 0; start(); return }
         guard message.name == "cpReady", Self.isPortal(message.frameInfo.request.url ?? web.url) || web.url == Self.shellURL else { return }
         // wat je in de app al ziet, hoeft later geen melding meer te geven; meteen ook de sessie vasthouden
         Task.detached { try? await Checker.runAll(notify: false) }
@@ -155,6 +157,31 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if action.targetFrame == nil { webView.load(action.request) }
         return nil
+    }
+
+    /* laden mislukt (geen internet, of een beveiligde verbinding die niet lukt): niet op het visje blijven hangen */
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { loadFailed(error) }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { loadFailed(error) }
+
+    private func loadFailed(_ error: Error) {
+        let e = error as NSError
+        if e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled { return } // gewoon doorgestuurd
+        if e.domain == "WebKitErrorDomain" && e.code == 102 { return } // geen pagina (bijv. een download)
+        let why = e.code == NSURLErrorNotConnectedToInternet ? "Je hebt geen internet." :
+            [NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasBadDate].contains(e.code)
+            ? "De beveiligde verbinding met het portaal lukte niet (zit je op een netwerk dat verkeer onderschept?)." : "Het portaal reageert niet."
+        let dark = Prefs.theme == "dark"
+        let html = """
+        <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+        <style>body{margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:0 28px;
+        box-sizing:border-box;font:16px -apple-system,system-ui,sans-serif;text-align:center;background:\(dark ? "#0d0c0a" : "#f3f1ec");color:\(dark ? "#f3f1ec" : "#1a1814")}
+        h1{font-size:22px;margin:0}p{margin:0;opacity:.7;line-height:1.45}
+        button{margin-top:8px;font:700 16px -apple-system,system-ui;padding:14px 28px;border:0;border-radius:14px;background:#ffd34d;color:#1a1814}</style></head>
+        <body><h1>Geen verbinding</h1><p>\(why)</p><p style="font-size:13px">(\(e.code))</p>
+        <button onclick="window.webkit.messageHandlers.cpRetry.postMessage(1)">Opnieuw</button></body></html>
+        """
+        web.loadHTMLString(html, baseURL: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { UIView.animate(withDuration: 0.2) { self.web.alpha = 1 } }
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
