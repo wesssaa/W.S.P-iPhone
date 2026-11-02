@@ -40,6 +40,8 @@ targets:
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIViewControllerBasedStatusBarAppearance: true
+        # geheim ntfy-onderwerp voor foutmeldingen; komt uit het GitHub-geheim WSP_CRASH_TOPIC (leeg = niks versturen)
+        WSPCrashTopic: $(WSP_CRASH_TOPIC)
         # af en toe op de achtergrond kijken naar nieuwe cijfers, huiswerk en roosterwijzigingen
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [nl.cijferpacks.app.refresh]

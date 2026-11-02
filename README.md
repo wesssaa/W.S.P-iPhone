@@ -6,7 +6,7 @@ W.S.P is een onofficiële app van een leerling. Hij staat niet in de App Store, 
 
 **[⬇ Download W.S.P (WSP.ipa)](https://github.com/wesssaa/W.S.P-iPhone/releases/latest/download/WSP.ipa)**
 
-> Heb je Android? Kijk dan bij [W.S.P voor Android](https://github.com/wesssaa/Ichthus-Plus).
+> Heb je Android? Kijk dan bij [W.S.P voor Android](https://github.com/wesssaa/W.S.P).
 
 ---
 
@@ -90,6 +90,7 @@ Hetzelfde als de Android-app: cijfers unboxen, alle cijfers per vak met "Wat moe
 
 - Je logt in via de gewone schoolinlog (Microsoft). De app ziet en bewaart je wachtwoord niet. Op de inlogpagina verbergt hij alleen het logo van school en zet hij een algemene voorbeeldtekst in het e-mailveld.
 - Je cijfers, rooster, huiswerk en reminders blijven alleen op je eigen iPhone.
+- Loopt de app vast, dan gaat de technische foutmelding de volgende keer dat je hem opent automatisch naar de ontwikkelaar (app-versie, iPhone-model en de fout zelf; geen cijfers of inlog).
 - Geen advertenties, geen trackers. SideStore en iloader zijn programma's van anderen; W.S.P krijgt daar niks van te zien.
 
 ## Let op

@@ -12,7 +12,7 @@ final class Bridge {
     static let methods = ["vibrate", "open", "logout", "relogin", "setTheme", "getZermelo", "setZermelo", "zermeloSso",
                           "getAgenda", "appVersion", "getIcon", "setIcon", "getOwnReminders", "setOwnReminders", "setRemOwner",
                           "getSettings", "setSetting", "onMobile", "openNotifSettings", "testNotify", "devNotify",
-                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache", "fetchRelease", "installUpdate", "signExpiry"]
+                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache", "fetchRelease", "installUpdate", "signExpiry", "devCrash"]
 
     static let shimJS = """
     (function () {
@@ -115,6 +115,8 @@ final class Bridge {
                 let arg = json.flatMap { j in (try? JSONSerialization.data(withJSONObject: j, options: .fragmentsAllowed)).flatMap { String(data: $0, encoding: .utf8) } } ?? "null"
                 self.c?.js("window.__cpRel && window.__cpRel(\(arg))")
             }
+        case "devCrash":
+            CrashLog.test()
         case "signExpiry":
             return encode(Updates.signExpiry())
         case "installUpdate":

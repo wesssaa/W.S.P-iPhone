@@ -243,7 +243,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        // de webpagina is gestopt (bijv. weinig geheugen): stil opnieuw starten
+        // de webpagina is gestopt (bijv. weinig geheugen): stil opnieuw starten, en onthouden voor de ontwikkelaar (zoals Android)
+        CrashLog.append("WebView-proces gestopt (niet fataal, de app is opnieuw gestart)")
         webView.alpha = 0
         start()
     }

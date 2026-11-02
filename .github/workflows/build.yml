@@ -26,9 +26,12 @@ jobs:
           xcodegen generate
 
       - name: Bouwen
+        env:
+          # geheim ntfy-onderwerp voor foutmeldingen (Settings → Secrets → Actions); staat zo niet in de openbare code
+          WSP_CRASH_TOPIC: ${{ secrets.WSP_CRASH_TOPIC }}
         run: |
           xcodebuild -project IchthusPlus.xcodeproj -target IchthusPlus -configuration Release -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > build.log 2>&1 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" WSP_CRASH_TOPIC="$WSP_CRASH_TOPIC" build > build.log 2>&1 \
             || { grep -E "error:" build.log | sort -u; tail -n 60 build.log; exit 1; }
           grep -E "warning:" build.log | sort -u | head -n 30 || true
           tail -n 5 build.log

@@ -3047,7 +3047,7 @@
         <li><b>Op de achtergrond</b> kijkt de app in het leerlingportaal en Zermelo of er nieuwe cijfers, huiswerk of roosterwijzigingen zijn: ${IOS ? "zo vaak als iOS dat toestaat (meestal een paar keer per dag), hooguit zoals je instelt, en 's nachts niet" : "op wifi standaard elk half uur, op 4G/5G standaard elke 2,5 uur (alleen rooster en cijfers), elke schooldag een uur voor je eerste les, en 's nachts niet"}. Je stelt dit zelf in bij Meer → Datagebruik. Het gaat met je eigen inlog en alleen voor de meldingen die je aan hebt staan.</li>
         <li><b>Uitloggen</b> haalt je inlog en de Zermelo-koppeling weg. Welke cijfers je al hebt geopend, je afgevinkte huiswerk en je reminders blijven op deze telefoon bewaard onder jouw account, zodat ze terugkomen als je weer inlogt. Iemand anders die hier inlogt, ziet ze niet.</li>
         <li><b>Updates.</b> De app staat op GitHub. W.S.P kijkt daar als je de app opent op wifi of er een nieuwe versie is. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. ${IOS ? 'Bijwerken gaat via SideStore: de app opent SideStore met de nieuwe versie.' : 'De app downloadt de nieuwe versie daar als je op Bijwerken tikt. De toestemming om apps te installeren wordt alleen gebruikt voor updates van W.S.P zelf.'}</li>
-        ${IOS ? '' : `<li><b>Foutmeldingen.</b> Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh), met de app-versie en je telefoonmodel. Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>`}
+        <li><b>Foutmeldingen.</b> Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh)${IOS ? ' de volgende keer dat je de app opent' : ''}, met de app-versie en je telefoonmodel. Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>
         <li><b>Cookies en opslag.</b> De app gebruikt de cookies van het leerlingportaal en Zermelo om je ingelogd te houden, en lokale opslag voor je instellingen en reminders. De lettertypes zitten in de app zelf, daarvoor wordt niets van internet geladen. Er zijn geen advertenties en er wordt niets bijgehouden.</li>
         <li><b>Geen garantie.</b> De app kan fouten bevatten of verouderde informatie tonen. Controleer belangrijke dingen, zoals cijfers, toetsen en roosterwijzigingen, altijd in het leerlingportaal of Zermelo.</li>
         <li><b>Gebruik</b> is op eigen risico. Houd je aan de regels van school voor het gebruik van het portaal en Zermelo.</li>
@@ -3248,7 +3248,7 @@
   }
 
   /* ---------- updates: zelf kijken of er een nieuwe versie op GitHub staat en die installeren ---------- */
-  const UPD_API = 'https://api.github.com/repos/wesssaa/Ichthus-Plus/releases/latest';
+  const UPD_API = 'https://api.github.com/repos/wesssaa/W.S.P/releases/latest';
   const verNum = v => String(v || '').replace(/^v/, '').split('-')[0].split('.').map(n => parseInt(n, 10) || 0);
   /* nummer achter -canary.N / -beta.N; een echte versie (zonder) is nieuwer dan elke canary van hetzelfde nummer */
   const preNum = v => { const m = /-(?:canary|beta)\.(\d+)$/.exec(String(v || '')); return m ? +m[1] : Infinity; };
@@ -3387,7 +3387,7 @@
     if (Native && Native.fetchReleaseList) {
       window.__cpRelList = t => { let l = null; try { l = JSON.parse(t); } catch (e) {} show(l); };
       Native.fetchReleaseList();
-    } else fetch('https://api.github.com/repos/wesssaa/Ichthus-Plus/releases?per_page=12').then(r => r.json()).then(show).catch(() => show(null));
+    } else fetch('https://api.github.com/repos/wesssaa/W.S.P/releases?per_page=12').then(r => r.json()).then(show).catch(() => show(null));
   }
 
   /* allereerste keer: is deze APK al verouderd, dan eerst bijwerken (zo krijgt iedereen die de app doorgestuurd krijgt
@@ -3592,7 +3592,7 @@
       <div class="seg" style="margin-top:8px">${[[false, 'Huiswerk'], [true, 'Toets']].map(([k, l]) => `<button class="${!!d.hwToets === k ? 'on' : ''}" data-dht="${k}">${l}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="devhw">Simuleer nieuw huiswerk</button></div>
       <label class="lbl" style="display:block;margin-top:14px">Crash</label>
-      <div class="small muted" style="margin-top:6px">Start de app opnieuw met een testfoutmelding. Die wordt als test naar de developer gestuurd.</div>
+      <div class="small muted" style="margin-top:6px">${IOS ? 'Stuurt meteen een testfoutmelding naar de developer.' : 'Start de app opnieuw met een testfoutmelding. Die wordt als test naar de developer gestuurd.'}</div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="devcrash">Simuleer crashmelding</button></div>
       <label class="lbl" style="display:block;margin-top:14px">Dag en tijd</label>
       <div class="small muted" style="margin-top:6px">Doe alsof het een andere dag en tijd is, om bijv. de les van nu, uitval of reminders te testen. Alleen in de app: meldingen volgen de echte tijd.</div>
@@ -3697,7 +3697,7 @@
       if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     const dc = main.querySelector('[data-a=devcrash]');
-    if (dc) dc.onclick = () => { if (Native && Native.devCrash) Native.devCrash(); else toast('Testcrash (alleen in de app)'); };
+    if (dc) dc.onclick = () => { if (Native && Native.devCrash) { Native.devCrash(); if (IOS) toast('Testfoutmelding verstuurd naar de developer'); } else toast('Testcrash (alleen in de app)'); };
     const sn = main.querySelector('[data-a=simnew]');
     if (sn) sn.onclick = simNewUser;
     const cn = main.querySelector('[data-a=canary]');

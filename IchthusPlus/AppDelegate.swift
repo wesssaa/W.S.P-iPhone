@@ -9,6 +9,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         _ = Self.launched
+        // foutmeldingen opvangen, en een fout van de vorige keer naar de ontwikkelaar sturen
+        CrashLog.install()
+        CrashLog.sendPending()
         UNUserNotificationCenter.current().delegate = self
         _ = Checker.monitor // wifi of 4G/5G bijhouden
         Background.register()
