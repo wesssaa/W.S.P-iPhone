@@ -11,6 +11,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     var bridge: Bridge!
     var zermelo: ZermeloLogin?
     private var currentURL: URL?
+    private var bottom: NSLayoutConstraint!
 
     override var preferredStatusBarStyle: UIStatusBarStyle { Prefs.theme == "dark" ? .lightContent : .darkContent }
 
@@ -47,12 +48,16 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         web.allowsLinkPreview = false
         web.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(web)
+        bottom = web.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
         NSLayoutConstraint.activate([
             web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            web.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            bottom,
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
+        // toetsenbord: de app wordt kleiner (zoals op Android), zodat het tekstvak en de knoppen erboven blijven
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboard(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboard(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
 
         // terugvegen vanaf de linkerrand = de terugknop van Android
         let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgeBack(_:)))
@@ -109,6 +114,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         return """
         if (location.hostname === '\(portalHost)' && location.pathname.indexOf('/oidc') !== 0) {
           window.__cpPlatform = 'ios';
+          // lang indrukken op een plaatje of link: geen iOS-menuutje (zoals een app, niet als een website)
+          document.documentElement.style.webkitTouchCallout = 'none';
           window.__cpAssets = \(map);
           if (location.pathname.indexOf('/portaal/ichthusplus') === 0) window.__cpShell = true;
           \(js)
@@ -230,6 +237,17 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             self.web.backgroundColor = Theme.background(mode)
         }
         setNeedsStatusBarAppearanceUpdate()
+    }
+
+    @objc private func keyboard(_ n: Notification) {
+        guard let end = (n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
+        let hiding = n.name == UIResponder.keyboardWillHideNotification
+        // hoeveel het toetsenbord over de app heen komt (boven de veilige rand onderaan)
+        let overlap = hiding ? 0 : max(0, view.bounds.maxY - view.convert(end, from: nil).minY - view.safeAreaInsets.bottom)
+        if bottom.constant == -overlap { return }
+        bottom.constant = -overlap
+        let dur = n.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        UIView.animate(withDuration: dur) { self.view.layoutIfNeeded() }
     }
 
     @objc private func edgeBack(_ g: UIScreenEdgePanGestureRecognizer) {

@@ -12,7 +12,8 @@ struct HTTPError: Error { let code: Int }
 final class Portal: NSObject, URLSessionTaskDelegate {
     static let base = "https://\(WebViewController.portalHost)"
     private var cookies: [HTTPCookie] = []
-    private let store = WKWebsiteDataStore.default().httpCookieStore
+    /* WebKit mag alleen op de hoofdthread: de cookieopslag daar opvragen, nooit op de achtergrond */
+    @MainActor static func cookieStore() -> WKHTTPCookieStore { WKWebsiteDataStore.default().httpCookieStore }
     private lazy var session: URLSession = {
         let c = URLSessionConfiguration.ephemeral
         c.httpCookieStorage = nil
@@ -24,7 +25,7 @@ final class Portal: NSObject, URLSessionTaskDelegate {
 
     static func open() async -> Portal {
         let p = Portal()
-        p.cookies = await withCheckedContinuation { k in DispatchQueue.main.async { p.store.getAllCookies { k.resume(returning: $0) } } }
+        p.cookies = await cookieStore().allCookies()
         return p
     }
 
@@ -90,30 +91,18 @@ final class Portal: NSObject, URLSessionTaskDelegate {
             cookies.removeAll { $0.name == c.name && $0.domain == c.domain && $0.path == c.path }
             cookies.append(c)
         }
-        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
-            DispatchQueue.main.async {
-                let g = DispatchGroup()
-                for c in fresh { g.enter(); self.store.setCookie(c) { g.leave() } }
-                g.notify(queue: .main) { k.resume() }
-            }
-        }
+        for c in fresh { await Self.cookieStore().setCookie(c) }
     }
 
     /* sessiecookies van het portaal een vervaldatum geven, zodat je na het sluiten van de app ingelogd blijft */
     static func persistCookies() async {
-        let all = await withCheckedContinuation { k in
-            DispatchQueue.main.async { WKWebsiteDataStore.default().httpCookieStore.getAllCookies { k.resume(returning: $0) } }
-        }
+        let all = await cookieStore().allCookies()
         let host = WebViewController.portalHost
         for c in all where c.expiresDate == nil && (host == c.domain || host.hasSuffix(c.domain.hasPrefix(".") ? c.domain : "." + c.domain)) {
             var p = c.properties ?? [:]
             p[.expires] = Date().addingTimeInterval(30 * 86400)
             p.removeValue(forKey: .discard)
-            if let n = HTTPCookie(properties: p) {
-                await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
-                    DispatchQueue.main.async { WKWebsiteDataStore.default().httpCookieStore.setCookie(n) { k.resume() } }
-                }
-            }
+            if let n = HTTPCookie(properties: p) { await cookieStore().setCookie(n) }
         }
     }
 }
