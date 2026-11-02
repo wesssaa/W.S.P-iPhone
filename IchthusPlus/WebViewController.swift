@@ -3,9 +3,9 @@ import WebKit
 
 /* Hetzelfde idee als MainActivity op Android: het portaal laden, app.js erin zetten en het portaal zelf verbergen. */
 final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-    static let portalHost = "leerlingen.ichthuscollege.nl"
-    static let startURL = URL(string: "https://\(portalHost)/portaal/mijn_info/cijfers_en_examendossier")!
-    static let shellURL = URL(string: "https://\(portalHost)/portaal/ichthusplus")!
+    nonisolated static let portalHost = "leerlingen.ichthuscollege.nl"
+    nonisolated static let startURL = URL(string: "https://\(portalHost)/portaal/mijn_info/cijfers_en_examendossier")!
+    nonisolated static let shellURL = URL(string: "https://\(portalHost)/portaal/ichthusplus")!
 
     var web: WKWebView!
     var bridge: Bridge!

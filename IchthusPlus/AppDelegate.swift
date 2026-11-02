@@ -25,6 +25,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationC
         Background.refreshAllowed()
     }
 
+    /* op de widget tikken: ichthusplus://rooster */
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        guard url.scheme == "ichthusplus" else { return false }
+        let tab = (url.host ?? "rooster").filter { $0.isLetter && $0.isLowercase }
+        (window?.rootViewController as? WebViewController)?.js("window.__cpApp ? window.__cpApp.go('\(tab)') : (window.__cpStartTab='\(tab)')")
+        return true
+    }
+
     /* ook een melding laten zien als de app open is (zoals op Android) */
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {

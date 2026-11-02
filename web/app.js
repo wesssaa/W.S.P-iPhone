@@ -13,8 +13,9 @@
   /* plaatjes en lettertypes uit de app zelf; de iPhone-app kan /__ichthusplus/ niet onderscheppen en geeft ze als data-URL mee */
   const ASSETS = window.__cpAssets || null;
   const assetUrl = p => (ASSETS && ASSETS[p]) || (DEMO ? '/app/assets/' : '/__ichthusplus/') + p;
-  /* iPhone-app: nog geen widget (komt later) */
+  /* iPhone-app: andere uitleg voor de widget, geen "trillen" */
   const IOS = window.__cpPlatform === 'ios';
+  const IOS_WIDGET = '<p class="small"><b>Zo zet je hem neer:</b> houd een leeg plekje op je beginscherm ingedrukt → tik linksboven op <b>+</b> (of <b>Wijzig</b> → <b>Voeg widget toe</b>) → zoek <b>Ichthus+</b> → kies een maat → <b>Voeg widget toe</b>. Ook op je toegangsscherm kan hij erbij.</p>';
 
   /* ---------- opslag ---------- */
   const ls = {
@@ -2733,6 +2734,14 @@
       <div class="ws-help" hidden><p class="small"><b>Zelf toevoegen:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>Ichthus+</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
       <button class="btn" data-a="pin">Op startscherm zetten</button><button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
+    if (IOS) {
+      /* iPhone: een app kan zelf geen widget neerzetten, dus alleen de uitleg */
+      m.querySelector('[data-wsize]').innerHTML = widgetPreview('');
+      m.querySelector('.ws-help').outerHTML = IOS_WIDGET;
+      m.querySelector('[data-a=pin]').remove();
+      app.appendChild(m);
+      return;
+    }
     const kind = widgetSizePicker(m.querySelector('[data-wsize]'));
     m.querySelector('[data-a=pin]').onclick = () => {
       if (pinWidget(kind())) m.remove();
@@ -2762,7 +2771,19 @@
   };
   /* eerste keer, na de batterij-stap: de widget uitleggen met een voorbeeld, en meteen neerzetten of later */
   function askWidgetStep() {
-    if (ls.get('cp:widgetAsked', 0) || IOS) return askZermelo();
+    if (ls.get('cp:widgetAsked', 0)) return askZermelo();
+    if (IOS) {
+      const m = document.createElement('div');
+      m.className = 'modal';
+      m.innerHTML = `<div class="sheet"><h3>Je volgende les op je beginscherm</h3>
+        <p class="small" style="color:var(--fg2)">Met de widget zie je zonder de app te openen welke les je nu of straks hebt, in welk lokaal, en of hij uitvalt.</p>
+        ${widgetPreview('')}${IOS_WIDGET}
+        <p class="small muted">Je kunt dit later teruglezen bij Meer → Zien wat je hierna hebt.</p>
+        <div class="row"><button class="btn" data-a="ok" style="flex:1">Begrepen</button></div></div>`;
+      m.querySelector('[data-a=ok]').onclick = () => { ls.set('cp:widgetAsked', 1); m.remove(); askZermelo(); };
+      app.appendChild(m);
+      return;
+    }
     const m = document.createElement('div');
     m.className = 'modal';
     m.innerHTML = `<div class="sheet"><h3>Je volgende les op je startscherm</h3>
@@ -3671,7 +3692,7 @@
       <input type="checkbox" data-n="${key}"${on ? ' checked' : ''}><i class="toggle"></i></label>`;
     /* per soort melding: geluid, trillen, stil of helemaal uit */
     const modeRow = (type, title, sub, mode) => `<div class="nrow"><b>${title}</b>${sub ? `<div class="small muted">${sub}</div>` : ''}
-      <div class="modes">${[['geluid', 'Geluid'], ['trillen', 'Trillen'], ['stil', 'Stil'], ['uit', 'Uit']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-mode="${type}:${k}">${l}</button>`).join('')}</div></div>`;
+      <div class="modes">${[['geluid', 'Geluid'], ...(IOS ? [] : [['trillen', 'Trillen']]), ['stil', 'Stil'], ['uit', 'Uit']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-mode="${type}:${k}">${l}</button>`).join('')}</div></div>`;
     const draw = () => {
       let ns = null;
       try { ns = Native && Native.getSettings ? JSON.parse(Native.getSettings()) : null; } catch (e) {}
@@ -3707,7 +3728,7 @@
         <div class="card-box"><div class="setting-h">Instellingen</div>
           <button class="setrow" data-a="themes"><span class="sr-pic" style="--pic:linear-gradient(135deg, ${theme === 'light' ? '#f3f1ec' : '#0d0c0a'} 50%, ${accent} 50%)"></span>
             <span class="sr-t"><b>Thema</b><small>${theme === 'light' ? 'Wit' : 'Zwart'} met accentkleur · app-icoon</small></span><span class="go">›</span></button>
-          ${IOS ? '' : `<button class="setrow" data-a="widget" style="padding-top:12px"><span class="sr-t"><b>Zien wat je hierna hebt</b><small>Widget op je startscherm met je volgende les, lokaal en uitval</small></span><span class="go">›</span></button>`}
+          <button class="setrow" data-a="widget" style="padding-top:12px"><span class="sr-t"><b>Zien wat je hierna hebt</b><small>Widget op je ${IOS ? 'beginscherm' : 'startscherm'} met je volgende les, lokaal en uitval</small></span><span class="go">›</span></button>
           ${ns && ns.n_mob_r_mode ? `<button class="setrow" data-a="data" style="padding-top:12px"><span class="sr-t"><b>Datagebruik</b><small>Hoe vaak de app kijkt op wifi en op 4G/5G, met een schatting</small></span><span class="go">›</span></button>` : ''}
           <button class="setrow" data-a="tabs" style="padding-top:12px"><span class="sr-t"><b>Tabbalk</b><small>${visibleTabs().map(k => TABS.find(t => t.k === k).label).join(' · ')}</small></span><span class="go">›</span></button>
           <div class="setting-h" style="margin:16px 0 10px;font-size:15px">Geluid bij cijfers</div>

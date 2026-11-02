@@ -101,15 +101,18 @@ final class Portal: NSObject, URLSessionTaskDelegate {
 
     /* sessiecookies van het portaal een vervaldatum geven, zodat je na het sluiten van de app ingelogd blijft */
     static func persistCookies() async {
-        let store = WKWebsiteDataStore.default().httpCookieStore
-        let all = await withCheckedContinuation { k in DispatchQueue.main.async { store.getAllCookies { k.resume(returning: $0) } } }
+        let all = await withCheckedContinuation { k in
+            DispatchQueue.main.async { WKWebsiteDataStore.default().httpCookieStore.getAllCookies { k.resume(returning: $0) } }
+        }
         let host = WebViewController.portalHost
         for c in all where c.expiresDate == nil && (host == c.domain || host.hasSuffix(c.domain.hasPrefix(".") ? c.domain : "." + c.domain)) {
             var p = c.properties ?? [:]
             p[.expires] = Date().addingTimeInterval(30 * 86400)
             p.removeValue(forKey: .discard)
             if let n = HTTPCookie(properties: p) {
-                await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in DispatchQueue.main.async { store.setCookie(n) { k.resume() } } }
+                await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
+                    DispatchQueue.main.async { WKWebsiteDataStore.default().httpCookieStore.setCookie(n) { k.resume() } }
+                }
             }
         }
     }

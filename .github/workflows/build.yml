@@ -22,7 +22,7 @@ jobs:
 
       - name: Xcode-project maken
         run: |
-          brew install xcodegen
+          brew install xcodegen ldid
           xcodegen generate
 
       - name: Bouwen
@@ -38,6 +38,10 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/Release-iphoneos/IchthusPlus.app Payload/
+          # de app group erin zetten (eerst de widget, dan de app), zodat SideStore hem voor beide aanvraagt
+          ldid -SIchthusWidget/IchthusWidget.entitlements Payload/IchthusPlus.app/PlugIns/IchthusWidget.appex/IchthusWidget
+          ldid -SIchthusPlus/IchthusPlus.entitlements Payload/IchthusPlus.app/IchthusPlus
+          ldid -e Payload/IchthusPlus.app/IchthusPlus
           zip -qry IchthusPlus.ipa Payload
           ls -l IchthusPlus.ipa
 

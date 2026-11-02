@@ -126,6 +126,7 @@ final class Bridge {
     private func logout() {
         Prefs.clearAccount()
         Reminders.logoutOwner()
+        WidgetData.clear()
         let store = WKWebsiteDataStore.default()
         store.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
             let zermelo = records.filter { $0.displayName.contains("zportal.nl") }

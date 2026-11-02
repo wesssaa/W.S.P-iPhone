@@ -1,5 +1,6 @@
 import BackgroundTasks
 import UserNotifications
+import WidgetKit
 
 /*
  Op de achtergrond kijken. Android start de app elk half uur; iOS beslist zelf wanneer (meestal een paar keer per dag,
@@ -41,10 +42,23 @@ enum Background {
     }
 }
 
-/* rooster voor de widget (de widget zelf komt in een volgende stap) */
+/* rooster voor de widget, in de opslag die de app en de widget delen (app group; SideStore zet de echte naam in ALTAppGroups) */
 enum WidgetData {
+    static var shared: UserDefaults {
+        let group = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?.first ?? "group.nl.cijferpacks.app"
+        return UserDefaults(suiteName: group) ?? .standard
+    }
+
     static func saveLessons(_ lessons: [[String: Any]], accent: String?) {
-        Prefs.set("w_lessons", lessons.jsonArrayString)
-        if let a = accent { Prefs.set("w_accent", a) }
+        let json = lessons.jsonArrayString
+        Prefs.set("w_lessons", json)
+        shared.set(json, forKey: "w_lessons")
+        if let a = accent, a.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil { shared.set(a, forKey: "w_accent") }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    static func clear() {
+        shared.removeObject(forKey: "w_lessons")
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
