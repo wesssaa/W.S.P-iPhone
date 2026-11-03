@@ -1366,7 +1366,7 @@
     { k: 'cijfers', label: 'Cijfers' },
     { k: 'meer', label: 'Meer' }
   ];
-  sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="W.S.P" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
+  sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="C.R.H" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
     <button class="ibtn" data-a="refresh" aria-label="Vernieuwen">${ICONS.refresh}</button></header><main></main>
     <nav class="tabs"></nav></div>`;
   const app = sh.querySelector('.app');
@@ -2722,7 +2722,7 @@
   /* ---------- tab: meer ---------- */
   /* ---------- thema's kiezen (eigen scherm, zodat Meer niet vol foto's staat) ---------- */
   /* app-icoon op je startscherm */
-  /* W.S.P in ronde letters: wit op zwart (standaard), zwart op wit, goud op zwart en goud op wit */
+  /* C.R.H in ronde letters: wit op zwart (standaard), zwart op wit, goud op zwart en goud op wit */
   const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit'], ['zwart', 'Goud op zwart'], ['default', 'Goud op wit']];
   const curIcon = () => { try { return Native && Native.getIcon ? Native.getIcon() : ls.get('cp:icon', 'zwartkaal'); } catch (e) { return 'zwartkaal'; } };
   const shownIcon = curIcon;
@@ -3036,7 +3036,7 @@
   function showTerms(viewOnly) {
     const el = document.createElement('div');
     el.className = 'terms';
-    el.innerHTML = `<div class="logos"><img src="${ASSET('mark.png')}" alt="W.S.P"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+    el.innerHTML = `<div class="logos"><img src="${ASSET('mark.png')}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
       <h2>${viewOnly ? 'Voorwaarden en privacy' : 'Voordat je begint'}</h2>
       <ul>
         <li><b>Onofficiële app.</b> W.S.P is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens je school of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
@@ -3823,7 +3823,7 @@
           <button class="linkbtn red" data-a="logout">Uitloggen</button>
         </div>
         <div class="card-box"><div class="setting-h">Over W.S.P</div>
-          <div class="logos"><img src="${ASSET('mark.png')}" alt="W.S.P"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+          <div class="logos"><img src="${ASSET('mark.png')}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
           <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens je school of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
           ${canUpdate() ? `<button class="linkbtn" data-a="upd">Zoek naar updates <span class="muted" style="font-weight:500">· je hebt versie ${esc(appVer())}</span></button>` : ''}
           <button class="linkbtn" data-a="terms" style="border-bottom:0;padding-bottom:0">Voorwaarden en privacy bekijken</button>

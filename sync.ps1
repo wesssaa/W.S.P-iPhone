@@ -11,7 +11,7 @@ Copy-Item "$app\assets\app.js" $web -Force
 Copy-Item "$app\assets\fonts\*.woff2" "$web\fonts" -Force
 Copy-Item "$app\assets\themes\*.png", "$app\assets\themes\*.svg", "$app\assets\themes\*.mp3" "$web\themes" -Force
 
-# 2. iconen: de W.S.P-munt op zwart of wit (gemaakt door app\art\make-icons.ps1)
+# 2. iconen: het C.R.H-logo op zwart of wit (gemaakt door app\art\make-icons.ps1)
 Add-Type -AssemblyName System.Drawing
 $cat = Join-Path $here 'IchthusPlus\Assets.xcassets'
 New-Item -ItemType Directory -Force $cat | Out-Null
@@ -33,15 +33,15 @@ function Save-Icon($set, $src) {
 }
 
 # zelfde vier als op Android: standaard = witte letters op zwart, Kaal = zwart op wit, Zwart = goud op zwart, Wit = goud op wit
-Save-Icon 'AppIcon' "$app\art\wsp-ios-zwart.png"
-Save-Icon 'AppIcon-Kaal' "$app\art\wsp-ios-wit.png"
-Save-Icon 'AppIcon-Zwart' "$app\art\wsp-ios-goudzwart.png"
-Save-Icon 'AppIcon-Wit' "$app\art\wsp-ios-goudwit.png"
+Save-Icon 'AppIcon' "$app\art\crh-ios-zwart.png"
+Save-Icon 'AppIcon-Kaal' "$app\art\crh-ios-wit.png"
+Save-Icon 'AppIcon-Zwart' "$app\art\crh-ios-goudzwart.png"
+Save-Icon 'AppIcon-Wit' "$app\art\crh-ios-goudwit.png"
 
-# 3. opstartscherm: het zwarte W.S.P-vierkant op de achtergrondkleur van het witte thema
+# 3. opstartscherm: het zwarte C.R.H-vierkant op de achtergrondkleur van het witte thema
 $ls = "$cat\LaunchMark.imageset"
 New-Item -ItemType Directory -Force $ls | Out-Null
-Copy-Item "$app\art\wsp-launch.png" "$ls\mark.png" -Force
+Copy-Item "$app\art\crh-launch.png" "$ls\mark.png" -Force
 '{"images":[{"filename":"mark.png","idiom":"universal","scale":"3x"}],"info":{"author":"xcode","version":1}}' | Set-Content "$ls\Contents.json" -Encoding ascii
 $lc = "$cat\LaunchBackground.colorset"
 New-Item -ItemType Directory -Force $lc | Out-Null
