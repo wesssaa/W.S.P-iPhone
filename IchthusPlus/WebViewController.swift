@@ -104,7 +104,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     /* inlogpagina van Microsoft: het logo van school niet tonen, en een algemene voorbeeldtekst in het e-mailveld.
        De app leest niks uit de velden, dus ziet je e-mailadres en wachtwoord niet (zoals hideLoginLogo op Android) */
-    static let loginCSS = """
+    nonisolated static let loginCSS = """
     (function () {
       var h = location.hostname;
       if (!/(^|\\.)(login\\.microsoftonline\\.com|login\\.microsoft\\.com|login\\.live\\.com)$/.test(h) || document.getElementById('wsp-hide')) return;
@@ -113,10 +113,15 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
       s.textContent = 'img.logo,.logo img,#bannerLogo,.banner-logo,img[data-bind*="bannerLogo"]{display:none!important}'
         + '.background-image,.backgroundImage,.background-image-holder{background-image:none!important}';
       (document.head || document.documentElement).appendChild(s);
-      // alleen de grijze voorbeeldtekst in het e-mailveld; wat je typt leest de app niet
+      // alleen de grijze voorbeeldtekst in het e-mailveld; wat je typt leest de app niet.
+      // In Safari tekent Microsoft die tekst als los vakje over het veld (div.placeholder): dan dat vakje aanpassen,
+      // en niet ook nog het veld, anders staan de twee teksten over elkaar
       var ph = function () {
+        var t = 'gebruikersnaam@schoolmail.com';
         var i = document.querySelector('input[name=loginfmt],input[type=email]');
-        if (i && i.placeholder !== 'gebruikersnaam@schoolmail.com') i.placeholder = 'gebruikersnaam@schoolmail.com';
+        if (i && i.placeholder && i.placeholder !== t) i.placeholder = t;
+        var d = document.querySelector('.placeholderContainer .placeholder');
+        if (d && d.textContent !== t) d.textContent = t;
       };
       ph();
       new MutationObserver(ph).observe(document.documentElement, { childList: true, subtree: true });
@@ -191,6 +196,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         let url = webView.url
         currentURL = url
         if Self.isPortal(url) || url == Self.shellURL { return }
+        // nog een keer, zoals Android bij elke pagina (doet niks als hij er al staat)
+        webView.evaluateJavaScript(Self.loginCSS, completionHandler: nil)
         // een inlogpagina pas laten zien als hij blijft staan (dus echt iets van je vraagt), niet als hij meteen doorstuurt
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             if self.web.url == url && !webView.isLoading { webView.alpha = 1 }

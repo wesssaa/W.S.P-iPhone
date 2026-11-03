@@ -6,9 +6,25 @@ import SwiftUI
  De app zet de lessen in een gedeelde opslag (app group); SideStore past de naam van die groep aan en zet hem in ALTAppGroups.
  */
 enum Shared {
-    static var defaults: UserDefaults? {
-        let group = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?.first ?? "group.nl.cijferpacks.app"
-        return UserDefaults(suiteName: group)
+    static var defaults: UserDefaults? { group.flatMap { UserDefaults(suiteName: $0) } }
+
+    /* de echte naam van de groep (SideStore maakt er group.nl.cijferpacks.app.<team> van): eerst ALTAppGroups, dan het profiel
+       in de widget zelf. Alleen een groep waar iOS echt toegang toe geeft telt, anders leest de widget iets anders dan de app schrijft */
+    static var group: String? {
+        var names = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]) ?? []
+        names += profileGroups()
+        names.append("group.nl.cijferpacks.app")
+        return names.first { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil }
+    }
+
+    static func profileGroups() -> [String] {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let a = data.range(of: Data("<?xml".utf8)),
+              let b = data.range(of: Data("</plist>".utf8), in: a.lowerBound..<data.endIndex),
+              let p = (try? PropertyListSerialization.propertyList(from: Data(data[a.lowerBound..<b.upperBound]), format: nil)) as? [String: Any],
+              let ent = p["Entitlements"] as? [String: Any] else { return [] }
+        return ent["com.apple.security.application-groups"] as? [String] ?? []
     }
 }
 

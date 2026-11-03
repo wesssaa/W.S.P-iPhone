@@ -34,6 +34,8 @@ final class ZermeloLogin: NSObject, WKNavigationDelegate {
         prev = silent ? Prefs.string("zm_token") : nil
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .default() // dezelfde inlog als het portaal (Microsoft), dus vaak meteen klaar
+        // ook hier: op de inlogpagina van Microsoft geen logo van school en de algemene voorbeeldtekst
+        cfg.userContentController.addUserScript(WKUserScript(source: WebViewController.loginCSS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         web = WKWebView(frame: .zero, configuration: cfg)
         super.init()
         web.navigationDelegate = self

@@ -53,11 +53,26 @@ enum Background {
     }
 }
 
-/* rooster voor de widget, in de opslag die de app en de widget delen (app group; SideStore zet de echte naam in ALTAppGroups) */
+/* rooster voor de widget, in de opslag die de app en de widget delen (app group; SideStore maakt er group.nl.cijferpacks.app.<team> van) */
 enum WidgetData {
-    static var shared: UserDefaults {
-        let group = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?.first ?? "group.nl.cijferpacks.app"
-        return UserDefaults(suiteName: group) ?? .standard
+    static var shared: UserDefaults { group.flatMap { UserDefaults(suiteName: $0) } ?? .standard }
+
+    /* zelfde zoektocht als in de widget: ALTAppGroups, dan het profiel van de app; alleen een groep waar iOS echt toegang toe geeft */
+    static var group: String? {
+        var names = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]) ?? []
+        names += profileGroups()
+        names.append("group.nl.cijferpacks.app")
+        return names.first { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil }
+    }
+
+    static func profileGroups() -> [String] {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              let a = data.range(of: Data("<?xml".utf8)),
+              let b = data.range(of: Data("</plist>".utf8), in: a.lowerBound..<data.endIndex),
+              let p = (try? PropertyListSerialization.propertyList(from: Data(data[a.lowerBound..<b.upperBound]), format: nil)) as? [String: Any],
+              let ent = p["Entitlements"] as? [String: Any] else { return [] }
+        return ent["com.apple.security.application-groups"] as? [String] ?? []
     }
 
     static func saveLessons(_ lessons: [[String: Any]], accent: String?) {
