@@ -7,8 +7,8 @@ options:
     iOS: "15.0"
 settings:
   base:
-    MARKETING_VERSION: "2.6.9"
-    CURRENT_PROJECT_VERSION: "6"
+    MARKETING_VERSION: "2.7.0"
+    CURRENT_PROJECT_VERSION: "7"
     TARGETED_DEVICE_FAMILY: "1"
     SWIFT_VERSION: "5.0"
     # niet ondertekend bouwen: SideStore ondertekent de app zelf met je eigen Apple ID

@@ -867,6 +867,15 @@
   nav.tabs button.on .ico { color: var(--accent-text); }
   nav.tabs .dot { position: absolute; top: 0; left: calc(50% + 7px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--red);
     color: #fff; font: 700 10px/17px var(--f-mono); text-align: center; box-shadow: 0 0 0 2px var(--nav); }
+  /* telefoon liggend: kop en tabbalk kleiner, zodat er genoeg plek overblijft voor de inhoud */
+  @media (orientation: landscape) and (max-height: 500px) {
+    header { padding: 8px 20px 6px; align-items: center; }
+    .hmark, header .ibtn { width: 34px; height: 34px; }
+    header h1 { font-size: 22px; }
+    nav.tabs { padding: 3px 6px 5px; }
+    nav.tabs button { flex-direction: row; justify-content: center; gap: 6px; padding: 2px 0; }
+    nav.tabs .dot { left: calc(50% - 6px); }
+  }
 
   /* basis */
   .card-box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; }
@@ -3129,6 +3138,25 @@
   new MutationObserver(() => { if (!segRaf) segRaf = requestAnimationFrame(() => { segRaf = 0; animSegs(); }); })
     .observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
+  /* telefoon gedraaid (of het scherm verandert van grootte): alles wat met pixels op zijn plek is gezet opnieuw plaatsen,
+     anders blijven het vlakje achter Dag/Week, de kolom van vandaag, het nu-streepje en de verkorte lessen op de oude plek staan */
+  let relayT = 0;
+  function relayout() {
+    sh.querySelectorAll('.seg, .modes').forEach(box => {
+      const pill = box.querySelector(':scope > .segpill'), on = box.querySelector(':scope > button.on');
+      if (!pill || !on) return;
+      pill.style.transition = 'none';
+      Object.assign(pill.style, { left: on.offsetLeft + 'px', top: on.offsetTop + 'px', width: on.offsetWidth + 'px', height: on.offsetHeight + 'px' });
+      void pill.offsetWidth;
+      pill.style.transition = '';
+    });
+    if (S.tab === 'rooster' && main.querySelector('.wk, .swipe-area')) { placeShort(); placeNowLine(); }
+    else if (main.querySelector('.nowline')) placeNowLine();
+  }
+  const relayoutSoon = () => { clearTimeout(relayT); relayout(); relayT = setTimeout(relayout, 250); }; /* nog een keer als het draaien klaar is */
+  window.addEventListener('resize', relayoutSoon);
+  window.addEventListener('orientationchange', relayoutSoon);
+
   /* ---------- uitleg bij de eerste keer: een blokje dat onderin omhoog schuift ---------- */
   const TIPS = {
     rooster: ['Je rooster', 'Wissel tussen <b>Dag</b> en <b>Week</b>. Veeg naar links of rechts voor een andere week en tik op een les voor het lokaal, de docent en wijzigingen. Rood gestreept betekent uitval.'],
@@ -3205,8 +3233,11 @@
     app.appendChild(ov);
     const hole = ov.querySelector('.tour-hole'), ring = ov.querySelector('.tour-ring'), card = ov.querySelector('.tour-card');
     const wait = ms => new Promise(x => setTimeout(x, ms));
-    let i = 0;
+    let i = 0, place = null;
+    const onTurn = () => { if (!ov.isConnected) { window.removeEventListener('resize', onTurn); return; } if (place) { place(); setTimeout(() => place && place(), 250); } };
+    window.addEventListener('resize', onTurn);
     const finish = () => {
+      window.removeEventListener('resize', onTurn);
       ls.set('cp:tourDone', 1);
       const seen = ls.get('cp:tips', {}) || {};
       TOUR.forEach(([k]) => { seen[k] = 1; });
@@ -3231,22 +3262,26 @@
         if (h < main.clientHeight * 0.6 && els.length > 1) main.scrollTop += (area().top + area().bottom) / 2 - (main.getBoundingClientRect().top + main.clientHeight / 2);
         await wait(120);
       }
+      /* uitlichten en de uitleg neerzetten; opnieuw als de telefoon gedraaid wordt */
+      place = () => {
       const A = app.getBoundingClientRect(), M = main.getBoundingClientRect();
       const u = els.length ? area() : M, r = { left: u.left, top: u.top, bottom: u.bottom, width: u.right - u.left };
       const top = Math.max(r.top, M.top + 4) - 6, bottom = Math.min(r.bottom, M.bottom - 4) + 6;
       Object.assign(hole.style, { left: (r.left - A.left - 6) + 'px', top: (top - A.top) + 'px', width: (r.width + 12) + 'px', height: Math.max(40, bottom - top) + 'px' });
       if (tabBtn) { const b = tabBtn.getBoundingClientRect(); Object.assign(ring.style, { left: (b.left - A.left) + 'px', top: (b.top - A.top) + 'px', width: b.width + 'px', height: b.height + 'px' }); }
-      const [title, tipText] = TIPS[k];
-      /* bij Thema sta je nog in Meer, niet in het themascherm zelf */
-      const text = k === 'themes' ? 'Tik hier om <b>Wit</b> of <b>Zwart</b> te kiezen, met je eigen accentkleur en een app-icoontje voor je ' + (IOS ? 'beginscherm' : 'startscherm') + '.' : tipText;
-      card.innerHTML = `<div class="tip-h"><span class="tip-i">${i + 1}</span><b>${esc(title)}</b><small>${i + 1} van ${TOUR.length}</small></div><p>${text}</p>
-        <div class="tour-btns"><button class="btn" data-a="next">${i === TOUR.length - 1 ? 'Klaar' : 'Volgende'}</button></div>`;
       /* uitleg onder het uitgelichte stuk als daar plek is, anders erboven, anders onderin */
       const below = A.bottom - bottom - 90, above = top - A.top;
       card.style.top = card.style.bottom = '';
       if (below > 210) card.style.top = (bottom - A.top + 12) + 'px';
       else if (above > 230) card.style.bottom = (A.bottom - top + 12) + 'px';
       else card.style.bottom = '96px';
+      };
+      place();
+      const [title, tipText] = TIPS[k];
+      /* bij Thema sta je nog in Meer, niet in het themascherm zelf */
+      const text = k === 'themes' ? 'Tik hier om <b>Wit</b> of <b>Zwart</b> te kiezen, met je eigen accentkleur en een app-icoontje voor je ' + (IOS ? 'beginscherm' : 'startscherm') + '.' : tipText;
+      card.innerHTML = `<div class="tip-h"><span class="tip-i">${i + 1}</span><b>${esc(title)}</b><small>${i + 1} van ${TOUR.length}</small></div><p>${text}</p>
+        <div class="tour-btns"><button class="btn" data-a="next">${i === TOUR.length - 1 ? 'Klaar' : 'Volgende'}</button></div>`;
       card.classList.add('in');
       card.querySelector('[data-a=next]').onclick = () => { buzz(8); if (++i >= TOUR.length) finish(); else show(); };
     };
