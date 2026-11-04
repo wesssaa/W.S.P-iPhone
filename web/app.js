@@ -1042,8 +1042,8 @@
   .wprev.sq b { font-size: 30px; }
   .wprev.wd { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 18px; }
   .wprev.wd div { order: -1; gap: 8px; }
-  .wprev.wd small, .wprev.wd em { font-size: 11px; }
-  .wprev.wd > small { display: none; }
+  .wprev.wd p { margin: 0; display: grid; gap: 1px; min-width: 0; flex: 1; }
+  .wprev.wd small, .wprev.wd em { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* themakeuze bij de eerste keer: twee mini-schermpjes */
   input.secret { -webkit-text-security: disc; }
   .tpick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
@@ -1081,6 +1081,10 @@
   .ibtn.sm { width: 34px; height: 34px; border-radius: 10px; font: 700 16px var(--f-body); }
   .ibtn:disabled { opacity: .3; }
   .hw.isdone .t, .hw.isdone .txt { opacity: .45; text-decoration: line-through; }
+  .hw.past { opacity: .55; filter: grayscale(.6); }
+  .day-h.past { opacity: .7; }
+  .hw-past-h { display: flex; align-items: center; gap: 10px; font: 600 11px var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 22px 2px 0; }
+  .hw-past-h::before, .hw-past-h::after { content: ''; flex: 1; height: 1px; background: currentColor; opacity: .3; }
 
   /* rooster: dag als lijst met tijdkolom, week als bord */
   .card-box.les { display: grid; grid-template-columns: 50px 1fr auto; gap: 12px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--line);
@@ -2272,13 +2276,19 @@
       byDay.get(k).push(it);
     });
     const today = dayStart(now());
-    let html = '';
-    byDay.forEach((list, k) => {
+    /* dagen die al geweest zijn gaan onderaan de lijst, iets grijzer (vandaag en later blijven bovenaan) */
+    const isPast = k => k && dayStart(new Date(k)).getTime() < today.getTime();
+    const days = [...byDay.keys()];
+    const order = days.filter(k => !isPast(k)).concat(days.filter(isPast));
+    let html = '', pastHead = false;
+    order.forEach(k => {
+      const list = byDay.get(k), past = isPast(k);
       const d = k ? new Date(k) : null;
-      html += `<div class="day-h${d && sameDay(d, today) ? ' today' : ''}">${d ? esc(niceDay(d)) : 'Zonder datum'}</div>`;
+      if (past && !pastHead) { pastHead = true; html += '<div class="hw-past-h">Al geweest</div>'; }
+      html += `<div class="day-h${d && sameDay(d, today) ? ' today' : ''}${past ? ' past' : ''}">${d ? esc(niceDay(d)) : 'Zonder datum'}</div>`;
       list.forEach(it => {
         const isDone = it.gemaakt || done[it.id];
-        html += `<div class="card-box hw${isDone ? ' isdone' : ''}"><div class="em">${emoji(it.vak)}</div><div class="body">
+        html += `<div class="card-box hw${isDone ? ' isdone' : ''}${past ? ' past' : ''}"><div class="em">${emoji(it.vak)}</div><div class="body">
           <div class="t"><span class="vk">${esc(it.vak)}</span>${it.own ? '<span class="tag dim">EIGEN</span>' : ''}${it.badge ? `<span class="tag red">${it.badge}</span>` : ''}${it.toets ? '<span class="tag">TOETS</span>' : ''}${it.uur ? `<span class="tag dim">${esc(it.uur)}e uur</span>` : ''}</div>
           <div class="t" style="margin-top:2px">${esc(it.onderwerp || 'Huiswerk')}</div>
           ${it.huiswerk ? `<div class="txt">${esc(it.huiswerk)}</div>` : ''}
@@ -2795,7 +2805,10 @@
   }
   /* de widget in drie maten: keuze + voorbeeld; pinWidget(kind) zet hem neer (true = gelukt) */
   const WIDGET_SIZES = [['wide3', '3x1', ''], ['square', '2x2', 'sq'], ['wide4', '4x1', 'wd']];
-  const widgetPreview = cls => `<div class="wprev ${cls}"><small>STRAKS · 10:40</small><div><b>EN</b><span>b112</span></div><em>4e uur · 10:40–11:25</em></div>`;
+  /* de 4x1 heeft twee regels: het uur staat bovenaan en de les daarna eronder (zoals NextLessonWidget) */
+  const widgetPreview = cls => cls === 'wd'
+    ? `<div class="wprev ${cls}"><div><b>EN</b><span>b112</span></div><p><small>STRAKS · 4E UUR · 10:40</small><em>Daarna 5e uur · WI · a138</em></p></div>`
+    : `<div class="wprev ${cls}"><small>STRAKS · 10:40</small><div><b>EN</b><span>b112</span></div><em>4e uur · 10:40–11:25</em></div>`;
   function widgetSizePicker(box, onKind) {
     let kind = 'wide3';
     const draw = () => {
