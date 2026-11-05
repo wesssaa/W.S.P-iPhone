@@ -83,6 +83,14 @@ enum WidgetData {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
+    /* uiterlijk van de widget: "dark" of "light" als achtergrond, plus de accentkleur van de app; meteen opnieuw tekenen */
+    static func setLook(theme: String, accent: String, alpha: Int) {
+        if theme == "dark" || theme == "light" { shared.set(theme, forKey: "w_theme") }
+        if (0...100).contains(alpha) { shared.set(alpha, forKey: "w_alpha") }
+        if accent.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil { shared.set(accent, forKey: "w_accent") }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     static func clear() {
         shared.removeObject(forKey: "w_lessons")
         WidgetCenter.shared.reloadAllTimelines()

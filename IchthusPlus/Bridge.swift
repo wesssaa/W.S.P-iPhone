@@ -12,7 +12,7 @@ final class Bridge {
     static let methods = ["vibrate", "open", "logout", "relogin", "setTheme", "getZermelo", "setZermelo", "zermeloSso",
                           "getAgenda", "appVersion", "getIcon", "setIcon", "getOwnReminders", "setOwnReminders", "setRemOwner",
                           "getSettings", "setSetting", "onMobile", "openNotifSettings", "testNotify", "devNotify",
-                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache", "fetchRelease", "installUpdate", "signExpiry", "devCrash"]
+                          "setHwRules", "setHwItems", "nextReminders", "setRoosterCache", "setWidgetLook", "fetchRelease", "installUpdate", "signExpiry", "devCrash"]
 
     static let shimJS = """
     (function () {
@@ -123,6 +123,9 @@ final class Bridge {
             Updates.install(s(0)) { st in self.c?.js("window.__cpUpd && window.__cpUpd('\(st)', 0)") }
         case "setRoosterCache":
             if let d = s(0).data(using: .utf8), let a = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] { WidgetData.saveLessons(a, accent: s(1)) }
+        case "setWidgetLook":
+            // widget: achtergrond zwart of wit, en de accentkleur van de app
+            WidgetData.setLook(theme: s(0), accent: s(1), alpha: Int(s(2)) ?? -1)
         default:
             break
         }

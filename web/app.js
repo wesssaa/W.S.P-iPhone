@@ -319,7 +319,6 @@
     p.closePanel = close;
     draw();
     app.appendChild(p);
-    tip('hwremind', () => p.isConnected);
   }
 
   /* eigen reminders: zelf typen waaraan, welke dag en hoe laat. Android bewaart ze en geeft de melding (in de preview: localStorage) */
@@ -861,7 +860,7 @@
   header { display: flex; align-items: flex-end; gap: 12px; padding: 16px 20px 10px; flex-shrink: 0; }
   .hmark { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; align-self: center; }
   .hd { flex: 1; min-width: 0; }
-  .hdate { margin: 0 0 2px; font: 600 11px/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .hdate { margin: 0 0 2px; font: 600 13px/1.1 var(--f-body); color: var(--fg2); }
   header h1 { margin: 0; font: 800 30px/1.05 var(--f-display); letter-spacing: -.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header h1 i { font-style: normal; color: var(--accent-text); }
   .ibtn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg); width: 40px; height: 40px; border-radius: 12px;
@@ -924,11 +923,13 @@
     border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
   .seg button.on { background: var(--fg); border-color: var(--fg); color: var(--bg); }
   /* schuivend blokje achter de gekozen knop (zie animSegs) */
-  .has-pill { position: relative; }
+  /* altijd (ook vóór het vlakje er is) de rij zelf als ankerpunt, anders stond het vlakje de eerste keer één beeld verkeerd */
+  .has-pill, .seg, .modes { position: relative; }
   .has-pill > button { position: relative; z-index: 1; transition: color .22s, border-color .22s; }
   .seg.has-pill > button.on { background: transparent; border-color: transparent; }
   .modes.has-pill > button.on { background: transparent; box-shadow: none; }
-  .segpill { position: absolute; z-index: 0; pointer-events: none; transition: left .3s cubic-bezier(.2,.8,.2,1), top .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1), height .3s; }
+  /* alleen zijwaarts schuiven (en breder/smaller worden), nooit omhoog of omlaag komen */
+  .segpill { position: absolute; z-index: 0; pointer-events: none; transition: left .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1); }
   .seg > .segpill { background: var(--fg); border-radius: 999px; }
   .modes > .segpill { background: var(--surface); border-radius: 9px; box-shadow: 0 1px 0 var(--line), 0 0 0 1px var(--line); }
   @media (prefers-reduced-motion: reduce) { .segpill { transition: none; } }
@@ -955,12 +956,14 @@
   .remc .rx { flex: 1; min-width: 0; }
   .remc .rx b { display: block; font: 700 15px var(--f-display); overflow-wrap: anywhere; }
   .remc .rx small { color: var(--muted); font-size: 12px; }
-  .remc.gone { opacity: .5; }
+  .remc.gone { color: var(--muted); }
   .remc.gone .rx b { text-decoration: line-through; }
-  .day-h { font: 600 11px var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 10px 2px -2px; }
+  /* kopjes in gewone letters (geen kleine gespatieerde hoofdletters): leest makkelijker. De typemachine-letter (mono)
+     is er alleen nog voor gegevens: tijden, lokalen, datums */
+  .day-h { font: 600 14px var(--f-body); color: var(--fg2); margin: 12px 2px -2px; }
   .day-h.today { color: var(--accent-text); }
   .setting-h { font: 700 17px var(--f-display); letter-spacing: -.01em; margin-bottom: 10px; }
-  .lbl { font: 600 11px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+  .lbl { font: 600 13px var(--f-body); color: var(--fg2); }
   .tag { display: inline-block; font: 700 10px var(--f-mono); padding: 3px 7px; border-radius: 6px; background: var(--accent); color: var(--ink); letter-spacing: .06em; vertical-align: middle; }
   .tag.dim { background: var(--surface2); color: var(--muted); }
   .tag.red { background: var(--red); color: #fff; }
@@ -1059,19 +1062,29 @@
   .check.on { background: var(--accent); border-color: var(--accent); }
   .check.pop { position: relative; animation: chk .42s cubic-bezier(.3, 1.6, .5, 1); }
   .check.pop::after { content: ''; position: absolute; inset: -2px; border-radius: 11px; border: 2px solid var(--accent); animation: ring .5s ease-out forwards; }
-  .card-box.hw.justdone { animation: dimin .4s ease; }
+  /* net afgevinkt: een kort accent-randje dat wegvloeit (de oude vervaging deed niks meer sinds er geen doorzichtigheid is) */
+  .card-box.hw.justdone { animation: justdone .6s ease; }
+  @keyframes justdone { from { box-shadow: 0 0 0 2px var(--accent); } }
   @keyframes chk { 0% { transform: scale(.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
   @keyframes ring { from { transform: scale(1); opacity: .9; } to { transform: scale(1.9); opacity: 0; } }
-  @keyframes dimin { from { opacity: 1; } }
-  .wprev { background: #111114; border: 1px solid #262629; border-radius: 22px; padding: 14px 16px; margin: 10px 0 12px; color: #f4f4f6; display: grid; gap: 2px; }
-  .wprev small { font: 700 11px var(--f-mono); letter-spacing: .08em; color: var(--accent); }
+  /* voorbeeld van de widget op een gekleurde "achtergrond van je scherm", zodat je de doorzichtigheid ziet */
+  .wpw { background: linear-gradient(135deg, #3b4bd8, #b04ad8 55%, #f08a4b); border-radius: 26px; padding: 8px; margin: 10px 0 12px; }
+  .wpw > .wprev { margin: 0; }
+  .wrange { width: 100%; accent-color: var(--accent); }
+  .wprev { background: color-mix(in srgb, #111114 var(--wa, 100%), transparent); border: 1px solid color-mix(in srgb, #262629 var(--wa, 100%), transparent); border-radius: 22px; padding: 14px 16px; margin: 10px 0 12px; color: #f4f4f6; display: grid; gap: 2px; }
+  .wprev small { font: 700 12px var(--f-body); color: var(--accent); }
   .wprev div { display: flex; align-items: center; justify-content: space-between; }
   .wprev b { font: 800 22px var(--f-display); }
   .wprev span { background: #26262b; border-radius: 10px; padding: 3px 9px; font: 700 15px var(--f-body); }
   .wprev em { font-style: normal; color: #b4b4bc; font-size: 13px; }
   .wprev.sq { width: 150px; height: 150px; margin-inline: auto; align-content: center; box-sizing: border-box; }
-  .wprev.sq div { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .wprev.sq b { font-size: 30px; }
+  .wprev.sq div { justify-content: flex-start; gap: 8px; }
+  .wprev.sq b { font-size: 28px; }
+  .wprev.sq em { font-size: 12px; }
+  /* widget met witte achtergrond */
+  .wprev.lt { background: color-mix(in srgb, #fff var(--wa, 100%), transparent); border-color: color-mix(in srgb, #e2e2e6 var(--wa, 100%), transparent); color: #111114; }
+  .wprev.lt span { background: #ececf0; }
+  .wprev.lt em { color: #55555c; }
   .wprev em.nx { color: #80808a; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wprev.wd { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 18px; }
   .wprev.wd div { order: -1; gap: 8px; }
@@ -1113,17 +1126,32 @@
   .tabrow .toggle-row { flex: 0 0 auto; margin-left: 4px; }
   .ibtn.sm { width: 34px; height: 34px; border-radius: 10px; font: 700 16px var(--f-body); }
   .ibtn:disabled { opacity: .3; }
-  .hw.isdone .t, .hw.isdone .txt { opacity: .45; text-decoration: line-through; }
-  .hw.past { opacity: .55; filter: grayscale(.6); }
-  .day-h.past { opacity: .7; }
-  .hw-past-h { display: flex; align-items: center; gap: 10px; font: 600 11px var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 22px 2px 0; }
+  /* gemaakt huiswerk: doorgestreept in de gedempte tekstkleur (geen doorzichtigheid, dan blijft het leesbaar) */
+  .hw.isdone .t, .hw.isdone .txt { color: var(--muted); text-decoration: line-through; }
+  /* voorbij (huiswerk, lessen, dagen): rustiger vlak en gedempte kleuren, maar de tekst houdt genoeg contrast (≥ 4.5:1).
+     Vroeger: half doorzichtig, en dan werd grijze tekst te grijs */
+  .hw.past, .les.gone, .les.pastday, .wkc.past:not(.uit) { background: color-mix(in srgb, var(--surface) 45%, var(--bg)); box-shadow: none; border-color: var(--line); }
+  .hw.past .t, .les.gone .wat b, .les.pastday .wat b, .les.gone .uur b, .les.pastday .uur b, .wkc.past b { color: var(--fg2); }
+  .hw.past .vk-chip, .les.gone .vk-chip, .les.pastday .vk-chip,
+  .hw.past .tag, .les.gone .tag, .les.pastday .tag, .wkc.past .hwb { background: var(--surface2); color: var(--muted); box-shadow: none; }
+  .les.gone .lok, .les.pastday .lok { background: var(--surface2); color: var(--fg2); box-shadow: none; }
+  .wkc.past span { color: var(--muted); }
+  .hw-past-h { display: flex; align-items: center; gap: 10px; font: 600 13px var(--f-body); color: var(--muted); margin: 22px 2px 0; }
   .hw-past-h::before, .hw-past-h::after { content: ''; flex: 1; height: 1px; background: currentColor; opacity: .3; }
 
   /* rooster: dag als lijst met tijdkolom, week als bord */
   /* elke les een eigen kaartje, net als bij Huiswerk en Cijfers (de achtergrond, rand en schaduw komen van .card-box) */
   .card-box.les { display: grid; grid-template-columns: 50px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; }
   .card-box.les + .card-box.les, .gap + .card-box.les, .card-box.les + .gap { margin-top: 8px; }
-  .day-h + .card-box.les { margin-top: 10px; } /* wat ruimte tussen "Vandaag · 5 lessen" en het eerste kaartje */
+  /* wat ruimte tussen een kopje ("Vandaag, 5 lessen", "Morgen") en het eerste kaartje eronder, in Rooster én Huiswerk */
+  .day-h + .card-box { margin-top: 10px; }
+  /* pauze tussen twee lessen: klein, gedempt (niet in de accentkleur), met een lijntje aan weerszijden */
+  .pz { display: flex; align-items: center; gap: 10px; font: 500 12px var(--f-body); color: var(--muted); margin: 10px 6px 0; }
+  .pz::before, .pz::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .pz + .card-box.les, .pz + .gap { margin-top: 10px; }
+  /* in het weekrooster: een smalle rij over de hele breedte */
+  .wkp { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font: 500 10px var(--f-body); color: var(--muted); padding: 0 2px; }
+  .wkp::before, .wkp::after { content: ''; flex: 1; height: 1px; background: var(--line); } /* wat ruimte tussen "Vandaag · 5 lessen" en het eerste kaartje */
   .les .uur { text-align: left; }
   .les .uur b { display: block; font: 800 22px/1 var(--f-display); font-variant-numeric: tabular-nums; }
   .les .uur span { font: 500 11px var(--f-mono); color: var(--muted); }
@@ -1136,24 +1164,24 @@
   .les .lok small { display: block; font: 600 9.5px var(--f-mono); text-decoration: line-through; opacity: .75; text-align: center; margin-top: 1px; }
   .les.now { background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); }
   .les.now .uur b { color: var(--accent-text); }
-  .les.gone { opacity: .72; filter: grayscale(.4); } /* les van vandaag die al geweest is: iets grijzer, maar goed leesbaar */
   .les.vervallen { background: var(--red-bg); border: 1px solid var(--red-line); }
   .les.vervallen .wat b { color: var(--red-fg); }
   .les.vervallen .wat b .vk-chip { text-decoration: line-through; }
   .les .note { grid-column: 2 / 4; font-size: 12px; color: var(--fg2); margin-top: -6px; }
-  .count { font-size: 13px; color: var(--fg2); text-align: center; }
+  /* "Nog 44 dagen tot de kerstvakantie": dichter bij de week erboven en het kaartje eronder (hoort bij elkaar) */
+  .count { font-size: 13px; color: var(--fg2); text-align: center; margin: -6px 0 -5px; }
   .count b { color: var(--accent-text); }
   .nowcard { display: grid; gap: 10px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
   .nowcard.mini { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-color: var(--line); }
   .nc-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 18%, transparent); }
   .nc-mini { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .nc-mini b { font: 700 15px var(--f-display); }
-  .nc-mini span { font: 500 12px var(--f-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nc-mini span { font: 500 13px var(--f-body); color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nc-part { display: flex; flex-direction: column; gap: 3px; }
   .nc-part + .nc-part { border-top: 1px solid var(--line); padding-top: 10px; }
-  .nc-part small { font: 600 10px var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--accent-text); }
+  .nc-part small { font: 700 13px var(--f-body); color: var(--accent-text); }
   .nc-part b { display: flex; align-items: center; gap: 8px; font: 800 19px var(--f-display); }
-  .nc-part span { font: 500 12px var(--f-mono); color: var(--muted); }
+  .nc-part span { font: 500 13px var(--f-body); color: var(--fg2); }
   .nc-bar { height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin-top: -2px; }
   .nc-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
   .free { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 28px 16px; border-radius: 18px;
@@ -1196,7 +1224,7 @@
   .wkend-r { appearance: none; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, var(--surface2)); color: var(--fg); display: flex; align-items: center; gap: 8px; padding: 5px 8px; text-align: left; font: inherit; }
   .wkend-r b { font: 700 11px var(--f-mono); color: var(--accent-text); flex-shrink: 0; }
   .wkend-r span { font: 700 12.5px var(--f-display); min-width: 0; overflow-wrap: break-word; }
-  .wkend-r.gone { opacity: .5; }
+  .wkend-r.gone { color: var(--muted); }
   .wkend-r.gone span { text-decoration: line-through; }
   .wkr-l, .wkr { margin-top: 10px; }
   .wkr-l { display: flex; justify-content: center; padding-top: 6px; color: var(--muted); }
@@ -1206,7 +1234,7 @@
   .wkri { appearance: none; border: 0; border-radius: 9px; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--fg); padding: 5px 4px; text-align: left; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .wkri b { font: 700 9px var(--f-mono); color: var(--accent-text); }
   .wkri span { font: 600 10px/1.15 var(--f-body); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; hyphens: auto; }
-  .wkri.gone { opacity: .5; }
+  .wkri.gone { color: var(--muted); }
   .wkri.gone span { text-decoration: line-through; }
   .wkc.empty { background: color-mix(in srgb, var(--surface) 40%, transparent); border: 0; border-radius: 9px; }
   /* donker: lessen iets grijzer en met een heel dun randje, zodat ze los van elkaar en van de achtergrond staan */
@@ -1234,7 +1262,6 @@
   .wkc .hwb { position: absolute; bottom: 2px; right: 2px; font: 700 7px/1 var(--f-mono); text-decoration: none; letter-spacing: .02em; padding: 2px 3px; border-radius: 4px; background: var(--accent); color: var(--ink); }
   .wkc .hwb.done, .tag.hwt.done { background: var(--surface2); color: var(--muted); }
   /* dagen die al geweest zijn: een heel klein beetje grijzer, het HW-labeltje ook */
-  .wkc.past, .les.pastday { filter: grayscale(.45); opacity: .82; }
   .hw-in-les { background: var(--surface2); border-radius: 12px; padding: 10px 12px; margin-top: 8px; }
   .hw-in-les .txt { margin-top: 4px; font-size: 14px; color: var(--fg2, var(--fg)); white-space: pre-line; }
   .hw-in-les.isdone b, .hw-in-les.isdone .txt { opacity: .5; }
@@ -1247,6 +1274,23 @@
   .sw.on { border-color: var(--fg); }
   .sw.custom { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); position: relative; overflow: hidden; }
   .sw.custom input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; }
+  /* widget: "zelfde als de app" (de kleur van de app met APP erin) */
+  .sw.same { display: inline-flex; align-items: center; justify-content: center; }
+  .sw.same i { font: 800 9px var(--f-mono); font-style: normal; letter-spacing: .04em; color: var(--ink); }
+  /* widget-stap: voorbeelden van alle maten, en de stapjes bovenaan */
+  .wall { margin-top: 6px; display: block; }
+  /* maat kiezen in de widget-stap: tik op een voorbeeld */
+  button.wall.pick { appearance: none; width: 100%; text-align: left; background: none; border: 2px solid transparent; border-radius: 26px; padding: 6px 8px 0; color: inherit; font: inherit; }
+  button.wall.pick.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  button.wall.pick.on .wall-l { color: var(--accent-text); }
+  .wall .wprev { margin: 4px 0 6px; }
+  .wall-l { font: 600 13px var(--f-body); color: var(--fg2); }
+  .wsteps { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }
+  .wsteps i { width: 22px; height: 4px; border-radius: 2px; background: var(--line); }
+  .wsteps i.on { background: var(--accent); }
+  .wsteps i.done { background: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .tour-card .wsteps { margin-bottom: 0; }
+  .tour-card .wsteps i { flex: 1; max-width: 34px; transition: background .25s; }
   .listrow { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
   .listrow:last-child { border-bottom: 0; }
   .listrow b { font-variant-numeric: tabular-nums; text-align: right; }
@@ -1270,8 +1314,9 @@
   .dev-box { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
   .btn .aanb { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 16%, transparent); font: 700 9.5px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; }
   .tour { position: absolute; inset: 0; z-index: 75; overflow: hidden; animation: tipfade .25s ease both; }
-  .tour.out { animation: tipfade .25s ease reverse both; }
-  .tour-hole { position: absolute; border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0,0,0,.66); outline: 2px solid var(--accent); outline-offset: 2px; transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease; pointer-events: none; }
+  .tour.out { animation: tipfadeout .25s ease both; }
+  /* (geen overgang op left/top/width/height: met de schaduw van 9999px moest het hele scherm elk beeld opnieuw getekend worden) */
+  .tour-hole { position: absolute; border-radius: 18px; box-shadow: 0 0 0 9999px rgba(0,0,0,.66); outline: 2px solid var(--accent); outline-offset: 2px; pointer-events: none; }
   .tour-ring { position: absolute; border-radius: 16px; box-shadow: 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); transition: left .35s ease, top .35s ease; pointer-events: none; animation: tourpulse 1.4s ease-in-out infinite; }
   @keyframes tourpulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent); } }
   .tour-card { position: absolute; left: 12px; right: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 14px 16px; box-shadow: 0 18px 50px rgba(0,0,0,.4); display: grid; gap: 10px; opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .25s; }
@@ -1286,18 +1331,23 @@
   @keyframes ptrspin { to { transform: rotate(360deg); } }
   .updnotes { max-height: 170px; overflow-y: auto; background: var(--surface2); border-radius: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.45; color: var(--fg2, var(--fg)); }
   .simpill { position: absolute; top: calc(4px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 90; border: 0; border-radius: 999px; background: var(--red); color: #fff; font: 700 10px var(--f-mono); letter-spacing: .06em; padding: 4px 10px; }
+  /* kaartje onderin (nog gebruikt voor "Bijgewerkt naar …" na een update) */
   .tipwrap { position: absolute; inset: 0; z-index: 70; background: rgba(0,0,0,.32); display: flex; align-items: flex-end; padding: 12px 12px calc(84px + env(safe-area-inset-bottom, 0px)); animation: tipfade .2s ease both; }
   .tipcard { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 16px 18px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.35); display: grid; gap: 10px; animation: tipup .32s cubic-bezier(.2,.9,.3,1.15) both; }
+  .tipcard p { margin: 0; color: var(--fg2, var(--fg)); font-size: 14.5px; line-height: 1.45; }
+  .tipwrap.out { animation: tipfadeout .2s ease both; }
+  .tipwrap.out .tipcard { animation: tipdown .2s ease both; }
+  @keyframes tipup { from { transform: translateY(110%); } to { transform: none; } }
+  @keyframes tipdown { to { transform: translateY(110%); } }
+  /* kop van een stap in de rondleiding */
   .tip-h { display: flex; align-items: center; gap: 10px; }
   .tip-h b { font: 700 17px var(--f-display); }
   .tip-i { width: 26px; height: 26px; border-radius: 13px; background: var(--accent); color: var(--ink); display: grid; place-items: center; font: 700 14px/1 var(--f-mono); flex-shrink: 0; }
-  .tipcard p { margin: 0; color: var(--fg2, var(--fg)); font-size: 14.5px; line-height: 1.45; }
-  .tipcard .btn { justify-self: end; padding-inline: 22px; }
-  .tipwrap.out { animation: tipfade .2s ease reverse both; }
-  .tipwrap.out .tipcard { animation: tipup .2s ease reverse both; }
-  @keyframes tipup { from { transform: translateY(110%); } to { transform: none; } }
+  /* rondleiding in- en uitfaden (weggaan met een eigen animatie: een afgelopen animatie omkeren startte hem niet opnieuw) */
+  @keyframes tipfadeout { to { opacity: 0; } }
   @keyframes tipfade { from { opacity: 0; } to { opacity: 1; } }
-  .toast { position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 80; background: var(--fg); color: var(--bg); padding: 10px 16px;
+  /* midden zetten met "translate" (los van transform), anders schoof de melding tijdens het opploppen opzij */
+  .toast { position: absolute; left: 50%; bottom: 88px; translate: -50% 0; z-index: 80; background: var(--fg); color: var(--bg); padding: 10px 16px;
     border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.4); animation: pop .3s both; max-width: 90%; text-align: center; }
   .calc-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; }
   select, .card-box input[type=text], .card-box input[type=number], .sheet input[type=text], .sheet input[type=number], .sheet input[type=password] {
@@ -1313,6 +1363,9 @@
   .modal { position: absolute; inset: 0; background: rgba(0,0,0,.72); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 50; padding: 16px; }
   .sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 20px; width: min(100%, 420px); max-height: 100%; overflow-y: auto;
     display: flex; flex-direction: column; gap: 12px; }
+  /* is het venster langer dan het scherm, dan scrollen in plaats van de onderdelen platdrukken
+     (anders werden bijv. de knoppen Zwart/Wit 0 pixels hoog en dus onzichtbaar) */
+  .sheet > * { flex-shrink: 0; }
   .sheet h3 { margin: 0; font: 800 20px var(--f-display); display: flex; align-items: center; gap: 10px; }
   .sheet .lbl { margin-top: 4px; }
   @keyframes pop { from { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.06); } }
@@ -1377,7 +1430,9 @@
   @keyframes rise { to { transform: translateY(-110vh); opacity: 0; } }
   @keyframes cffall { to { transform: translateY(110vh) rotate(720deg); } }
   @media (prefers-reduced-motion: reduce) {
-    .ub-pack, .app.shaking, .sp, .lock i { animation: none; }
+    /* "minder beweging" aan op de telefoon: geen schudden, flits over het hele scherm, confetti of inslaand cijfer */
+    .ub-pack, .app.shaking, .sp, .lock i, .flash, .cf, .ub-n.fin { animation: none; }
+    .flash, .cf { display: none; }
   }
   `;
 
@@ -1737,7 +1792,6 @@
     const f = { cijfers: renderGrades, huiswerk: renderHomework, rooster: renderRooster, meer: renderMore }[S.tab];
     f();
     const t = S.tab;
-    if (TIPS[t]) tip(t, () => S.tab === t && !main.querySelector('[data-a=login]'));
   }
   function spinning(on) { refreshBtn.classList.toggle('spin', !!on); }
 
@@ -2248,7 +2302,6 @@
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
     app.appendChild(m);
     bindCalc(m);
-    tip('calc', () => m.isConnected, true);
   }
 
   /* ---------- tab: huiswerk ---------- */
@@ -2332,7 +2385,8 @@
   async function renderHomework() {
     setHeader('Huiswerk');
     const mon = S.hwMonday, key = mon.getTime();
-    const shell = body => { main.innerHTML = `<div class="pad">${weekNav(mon, 'hw')}<div class="swipe-area">${body}</div></div>`; bindWeekNav('hwMonday', renderHomework); };
+    /* "Nog 44 dagen tot de kerstvakantie" staat bij Huiswerk, onder de week en boven het huiswerk */
+    const shell = body => { main.innerHTML = `<div class="pad">${weekNav(mon, 'hw')}${countdownHtml()}<div class="swipe-area">${body}</div></div>`; bindWeekNav('hwMonday', renderHomework); };
     if (!S.hw[key] && !S.fresh['hw' + key]) { const c = weekCache.get('hw', key); if (c) { S.hw[key] = c; refreshWeek('hw', key, mon); } }
     const cached = S.hw[key];
     if (!cached) {
@@ -2393,11 +2447,17 @@
         ls.set('cp:hwdone', done);
         saveRules();
         buzz(15);
-        renderHomework();
-        if (nu) {
-          const nb = [...main.querySelectorAll('.check')].find(x => x.dataset.id === id);
-          if (nb) { nb.classList.add('pop'); nb.closest('.card-box').classList.add('justdone'); }
+        /* alleen dit kaartje bijwerken (niet het hele tabblad opnieuw tekenen: dat verschoof soms de lijst) */
+        const it = items.find(x => x.id === id), card = b.closest('.card-box');
+        const isDone = !!(it && it.gemaakt) || !!done[id];
+        b.classList.toggle('on', isDone);
+        b.textContent = isDone ? '✓' : '';
+        if (card) {
+          card.classList.toggle('isdone', isDone);
+          const bell = card.querySelector('[data-bell]');
+          if (bell && it) bell.innerHTML = `${ICONS.bell} ${isDone ? 'Gemaakt' : esc(ruleLabel(ruleFor(it.id, it.vak)))}`;
         }
+        if (nu) { b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); if (card) { card.classList.remove('justdone'); void card.offsetWidth; card.classList.add('justdone'); } }
       };
     });
     main.querySelectorAll('[data-bell]').forEach(b => {
@@ -2485,18 +2545,18 @@
       /* niks aan de gang: klein kaartje met waarom (weekend, vrij, klaar) en de eerstvolgende les als die bekend is */
       const wd = n.getDay();
       const why = dayReason(t0);
-      const head = why ? 'Vrij · ' + why : wd === 0 || wd === 6 ? 'Weekend' : ls2.length ? 'Klaar voor vandaag' : today ? 'Vrij vandaag' : 'Niks aan de gang';
+      const head = why ? 'Vrij: ' + why : wd === 0 || wd === 6 ? 'Weekend' : ls2.length ? 'Klaar voor vandaag' : today ? 'Vrij vandaag' : 'Niks aan de gang';
       const nd = allDays.filter(d => d.date > t0).sort((a, b) => a.date - b.date).find(d => timed(d).length);
       const first = nd && timed(nd)[0];
       const when = nd && (sameDay(new Date(nd.date), new Date(t0 + 864e5)) ? 'morgen' : DAYS_SHORT[new Date(nd.date).getDay()]);
-      return `<div class="nowcard mini"><span class="nc-dot"></span><div class="nc-mini"><b>${esc(head)}</b>${first ? `<span>Volgende les: ${first.lokaal ? esc(first.lokaal) + ' · ' : ''}${esc(String(first.vak).toUpperCase())} · ${esc(when)} ${hm(first.a)}</span>` : '<span>Geen les op dit moment</span>'}</div></div>`;
+      return `<div class="nowcard mini"><span class="nc-dot"></span><div class="nc-mini"><b>${esc(head)}</b>${first ? `<span>Volgende les: ${esc(String(first.vak).toUpperCase())}${first.lokaal ? ' in ' + esc(first.lokaal) : ''}, ${esc(when)} om ${hm(first.a)}</span>` : '<span>Geen les op dit moment</span>'}</div></div>`;
     }
     const left = cur ? cur.b - mins : 0;
-    const part = (label, l, sub) => `<div class="nc-part"><small>${label}</small><b>${emoji(l.vak)} ${esc(vakName(l.vak))}</b><span>${esc(l.lokaal || '–')} · ${sub}</span></div>`;
+    const part = (label, l, sub) => `<div class="nc-part"><small>${label}</small><b>${emoji(l.vak)} ${esc(vakName(l.vak))}</b><span>${l.lokaal ? 'In ' + esc(l.lokaal) + ', ' : ''}${sub}</span></div>`;
     return `<div class="nowcard">
-      ${cur ? part(`Nu · nog ${left} min`, cur, 'tot ' + hm(cur.b)) + `<div class="nc-bar"><i style="width:${Math.round((mins - cur.a) / (cur.b - cur.a) * 100)}%"></i></div>`
+      ${cur ? part(`Nu, nog ${left} min`, cur, 'tot ' + hm(cur.b)) + `<div class="nc-bar"><i style="width:${Math.round((mins - cur.a) / (cur.b - cur.a) * 100)}%"></i></div>`
         : part(`${ls2.some(l => l.b <= mins) ? 'Volgende les' : 'Eerste les'} over ${next.a - mins >= 60 ? Math.floor((next.a - mins) / 60) + ' u ' : ''}${(next.a - mins) % 60} min`, next, 'om ' + hm(next.a))}
-      ${cur && next ? part('Straks · ' + hm(next.a), next, (next.a - cur.b > 5 ? 'na een pauze' : 'direct erna')) : ''}
+      ${cur && next ? part('Straks om ' + hm(next.a), next, (next.a - cur.b > 5 ? 'na een pauze' : 'direct erna')) : ''}
     </div>`;
   }
 
@@ -2511,7 +2571,7 @@
       const s = d.date + a * 60000, e = d.date + b * 60000;
       if (e > n) out.push({ s, e, vak: l.vak || '', lok: l.lokaal || '', uit: !!l.uitval, uur: l.uur || '' });
     })));
-    if (out.length) try { Native.setRoosterCache(JSON.stringify(out), accent); } catch (e) {}
+    if (out.length) try { Native.setRoosterCache(JSON.stringify(out), widgetAccent()); } catch (e) {}
   }
 
   /* streepje op de hoogte van "nu" (zoals in een agenda), en in de weekweergave een lichte achtergrond achter vandaag.
@@ -2533,12 +2593,13 @@
   function placeShort() {
     const wk = main.querySelector('.wk');
     if (!wk) return;
-    wk.querySelectorAll('.wkc[data-kort]').forEach(cell => {
-      const top = weekY(wk, +cell.dataset.ka), bottom = weekY(wk, +cell.dataset.kb);
+    /* eerst alles opmeten, dan schrijven (anders rekende de browser na elk vakje de hele tabel opnieuw uit) */
+    const todo = [...wk.querySelectorAll('.wkc[data-kort]')].map(cell => ({ cell, top: weekY(wk, +cell.dataset.ka), bottom: weekY(wk, +cell.dataset.kb), off: cell.offsetTop }));
+    todo.forEach(({ cell, top, bottom, off }) => {
       if (top == null || bottom == null) return;
       const h = Math.max(26, Math.round(bottom - top - 2));
       cell.style.minHeight = cell.style.height = h + 'px';
-      cell.style.transform = `translateY(${Math.round(top - cell.offsetTop + 1)}px)`;
+      cell.style.transform = `translateY(${Math.round(top - off + 1)}px)`;
     });
   }
   function placeNowLine() {
@@ -2655,7 +2716,18 @@
       let out = '', prevUur = null;
       d.lessons.forEach(l => {
         const u = parseInt(l.uur, 10);
-        if (prevUur != null && u > prevUur + 1) out += `<div class="gap">${u - prevUur - 1 === 1 ? 'tussenuur' : (u - prevUur - 1) + ' tussenuren'}</div>`;
+        /* tussen de vorige les en deze: tussenuren en pauzes in de goede volgorde, bijv. 4 · tussenuur · Etenspauze, 10 min ·
+           tussenuur · 2e pauze · 7 (pauzes klein, met een lijntje) */
+        if (prevUur != null && !isNaN(u) && u > prevUur) {
+          let free = 0;
+          const flush = () => { if (free) out += `<div class="gap">${free === 1 ? 'tussenuur' : free + ' tussenuren'}</div>`; free = 0; };
+          for (let k = prevUur; k < u; k++) {
+            const p = breakAfter(k);
+            if (p) { flush(); out += `<div class="pz">${esc(p)}</div>`; }
+            if (k + 1 < u) free++;
+          }
+          flush();
+        }
         if (!isNaN(u)) prevUur = u;
         const [a, b] = (l.tijd || '').split('-').map(toMin);
         const now = isToday && a != null && b != null && nowMin >= a && nowMin < b;
@@ -2693,7 +2765,7 @@
           ${list.map(({ r, t }) => `<button class="wkend-r${t <= nu ? ' gone' : ''}" data-rem="${esc(r.id)}"><b>${pad(t.getHours())}:${pad(t.getMinutes())}</b><span>${esc(r.text)}</span></button>`).join('')}</div>`;
       }).join('');
     };
-    let html = countdownHtml() + nowCardHtml(days) + `<div class="seg">${[['dag', 'Dag'], ['week', 'Week']].map(([k, l]) => `<button class="${S.rView === k ? 'on' : ''}" data-rv="${k}">${l}</button>`).join('')}</div>`;
+    let html = nowCardHtml(days) + `<div class="seg">${[['dag', 'Dag'], ['week', 'Week']].map(([k, l]) => `<button class="${S.rView === k ? 'on' : ''}" data-rv="${k}">${l}</button>`).join('')}</div>`;
     /* tijden per lesuur, links naast de tabel (de tijd die het vaakst bij dat uur hoort) */
     const uurTijd = {};
     days.forEach(d => d.lessons.forEach(l => {
@@ -2704,6 +2776,26 @@
     }));
     const hm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
     const uurAB = u => { const t = uurTijd[u]; return t ? Object.keys(t).sort((x, y) => t[y] - t[x])[0].split('-').map(Number) : null; };
+    /* pauzes uit de lestijden zelf: een gat van 10+ minuten tussen twee uren is een pauze (met tijden), en een uur dat
+       duidelijk langer is dan een gewoon uur heeft de etenspauze erin (bij school: het 5e uur, 55 i.p.v. 45 minuten) */
+    const lesLen = (() => {
+      const c = {};
+      Object.keys(uurTijd).forEach(u => { const ab = uurAB(+u); if (ab) c[ab[1] - ab[0]] = (c[ab[1] - ab[0]] || 0) + 1; });
+      const k = Object.keys(c).sort((x, y) => c[y] - c[x])[0];
+      return k ? +k : 45;
+    })();
+    /* tijden van een uur: uit je rooster, of (heeft niemand les dat uur deze week) uit de lestijden van school */
+    const uurTijdOf = u => uurAB(u) || (LESTIJDEN.gewoon[u - 1] ? LESTIJDEN.gewoon[u - 1].split('-').map(toMin) : null);
+    const pauzeUren = [];
+    for (let u = 1; u < 12; u++) { const a = uurTijdOf(u), b = uurTijdOf(u + 1); if (a && b && b[0] - a[1] >= 10) pauzeUren.push(u); }
+    const breakAfter = u => {
+      const a = uurTijdOf(u), b = uurTijdOf(u + 1);
+      if (!a) return null;
+      if (b && b[0] - a[1] >= 10) { const n = pauzeUren.indexOf(u) + 1; return (n ? n + 'e pauze' : 'Pauze') + ', ' + hm(a[1]) + '–' + hm(b[0]); }
+      /* hoe lang: de lengte van dit uur min een gewone les (bij school 55 − 45 = 10 minuten) */
+      if (a[1] - a[0] >= lesLen + 8) return 'Etenspauze, ' + (a[1] - a[0] - lesLen) + ' min';
+      return null;
+    };
     /* verkorte lessen: een dag waarop de meeste lessen minstens 5 minuten korter zijn dan normaal voor dat uur */
     const shortDay = d => {
       let n = 0, kort = 0;
@@ -2723,7 +2815,9 @@
       /* het weekend van nu (je kijkt al naar volgende week) bovenaan, want dat is vandaag of morgen */
       html += `<div class="swipe-area">${weekendHtml('voor')}<div class="wk" style="grid-template-columns: 38px repeat(${days.length}, 1fr)"><div></div>`;
       days.forEach(d => { const x = new Date(d.date); html += `<div class="wkh${sameDay(x, today) ? ' today' : ''}">${DAYS_SHORT[x.getDay()]}<b>${x.getDate()}</b>${d.lessons.length ? (shortDay(d) ? '<i class="wfree vk" data-lestijden>verkort ⓘ</i>' : '') : '<i class="wfree">vrij</i>'}</div>`; });
-      rows.forEach(u => {
+      rows.forEach((u, ri) => {
+        /* pauze vóór dit uur: een smalle rij over de hele breedte */
+        if (ri > 0) { const p = breakAfter(rows[ri - 1]); if (p) html += `<div class="wkp">${esc(p)}</div>`; }
         const ab = uurAB(u);
         html += `<div class="wku"${ab ? ` data-a="${ab[0]}" data-b="${ab[1]}"` : ''}><b>${u}</b>${tijdVan(u)}</div>`;
         days.forEach((d, di) => {
@@ -2762,7 +2856,7 @@
       const day = days.find(d => d.date === S.rDay);
       const dd = new Date(day.date);
       html += `<div class="seg">${days.map(d => { const x = new Date(d.date); return `<button class="${d.date === S.rDay ? 'on' : ''}" data-day="${d.date}">${DAYS_SHORT[x.getDay()]} ${x.getDate()}${d.lessons.some(l => l.uitval) ? ' •' : ''}</button>`; }).join('')}</div>
-        <div class="swipe-area">${day.date === days[0].date ? weekendHtml('voor') : ''}<div class="day-h${sameDay(dd, today) ? ' today' : ''}">${esc(niceDay(dd))} · ${day.lessons.length ? day.lessons.length + ' ' + (day.lessons.length === 1 ? 'les' : 'lessen') + (shortDay(day) ? ' · <button class="vkbtn" data-lestijden>verkort ⓘ</button>' : '') : 'vrij'}</div>${lessonsHtml(day, false)}${remHtml(day.date, 'Reminders')}${day.date === days[days.length - 1].date ? weekendHtml('na') : ''}</div>`;
+        <div class="swipe-area">${day.date === days[0].date ? weekendHtml('voor') : ''}<div class="day-h${sameDay(dd, today) ? ' today' : ''}">${esc(niceDay(dd))}, ${day.lessons.length ? day.lessons.length + ' ' + (day.lessons.length === 1 ? 'les' : 'lessen') + (shortDay(day) ? ' <button class="vkbtn" data-lestijden>verkort ⓘ</button>' : '') : 'vrij'}</div>${lessonsHtml(day, false)}${remHtml(day.date, 'Reminders')}${day.date === days[days.length - 1].date ? weekendHtml('na') : ''}</div>`;
     }
     if (!zm && !DEMO) html += `<div class="card-box"><div class="setting-h">Koppel Zermelo voor uitval</div>
       <p class="small muted">Dit rooster komt nu van het portaal en laat geen uitval zien. Koppel Zermelo om uitval, lokaalwijzigingen en meldingen te krijgen.</p>
@@ -2806,7 +2900,7 @@
     });
     main.querySelectorAll('[data-rv]').forEach(b => { b.onclick = () => { S.rView = b.dataset.rv; ls.set('cp:rview', S.rView); renderRooster(); }; });
     const zb = main.querySelector('[data-a=zm]');
-    if (zb) zb.onclick = zermeloSheet;
+    if (zb) zb.onclick = () => zermeloSheet(); /* niet de klik doorgeven: die telde als "eerste keer" */
   }
 
   function zermeloSheet(first) {
@@ -2931,13 +3025,22 @@
   }
   /* de widget in drie maten: keuze + voorbeeld; pinWidget(kind) zet hem neer (true = gelukt) */
   const WIDGET_SIZES = [['wide3', '3x1', ''], ['square', '2x2', 'sq'], ['wide4', '4x1', 'wd']];
-  /* zoals NextLessonWidget: overal staat wat en waar je daarna hebt. De 3x1 en 4x1 (één rij hoog) hebben het uur bovenaan
-     en de les daarna op de tweede regel; de 2x2 heeft de tijden en daaronder een eigen regel voor de les daarna */
-  const widgetPreview = cls => cls === 'wd'
-    ? `<div class="wprev ${cls}"><div><b>EN</b><span>b112</span></div><p><small>STRAKS · 4E UUR · 10:40</small><em>Daarna 5e uur · WI · a138</em></p></div>`
-    : cls === 'sq'
-      ? `<div class="wprev ${cls}"><small>STRAKS · 10:40</small><div><b>EN</b><span>b112</span></div><em>4e uur · 10:40–11:25</em><em class="nx">Daarna 5e uur · WI · a138</em></div>`
-      : `<div class="wprev ${cls}"><small>STRAKS · 4E UUR · 10:40</small><div><b>EN</b><span>b112</span></div><em>Daarna 5e uur · WI · a138</em></div>`;
+  /* zoals NextLessonWidget: in alle maten bovenaan wanneer (met het uur), het vak met het lokaal ernaast,
+     en wat en waar je daarna hebt. wt = achtergrond van de widget (zwart of wit) */
+  const widgetTheme = () => ls.get('cp:wtheme', 'dark') === 'light' ? 'light' : 'dark';
+  /* accentkleur van de widget: een eigen kleur (Meer → Thema → Widget), of anders dezelfde als de app */
+  function widgetAccent() { const c = ls.get('cp:waccent', null); return /^#[0-9a-f]{6}$/i.test(c || '') ? c : accent; }
+  /* widget meteen bijwerken: achtergrond en accentkleur */
+  /* hoe dicht de achtergrond van de widget is, in procenten (100 = dicht, 0 = helemaal doorzichtig) */
+  function widgetAlpha() { const a = +ls.get('cp:walpha', 100); return isNaN(a) ? 100 : Math.max(0, Math.min(100, a)); }
+  function widgetLook() { try { if (Native && Native.setWidgetLook) Native.setWidgetLook(widgetTheme(), widgetAccent(), widgetAlpha()); } catch (e) {} }
+  const widgetPreview = (cls, wt) => {
+    const lt = (wt || widgetTheme()) === 'light' ? ' lt' : '';
+    const st = ` style="--accent:${widgetAccent()};--wa:${widgetAlpha()}%"`; /* het voorbeeld in de kleur en doorzichtigheid van de widget */
+    return `<div class="wpw">` + (cls === 'wd'
+      ? `<div class="wprev ${cls}${lt}"${st}><div><b>EN</b><span>b112</span></div><p><small>Straks om 10:40, 4e uur</small><em>Daarna WI in a138, 5e uur</em></p></div>`
+      : `<div class="wprev ${cls}${lt}"${st}><small>Straks om 10:40, 4e uur</small><div><b>EN</b><span>b112</span></div><em>Daarna WI in a138, 5e uur</em></div>`) + `</div>`;
+  };
   function widgetSizePicker(box, onKind) {
     let kind = 'wide3';
     const draw = () => {
@@ -2956,40 +3059,92 @@
     return false;
   };
   /* eerste keer, na de batterij-stap: de widget uitleggen met een voorbeeld, en meteen neerzetten of later */
+  /* kleur van de widget kiezen: achtergrond (zwart/wit) en accentkleur (APP = dezelfde als de app).
+     Gebruikt bij Meer → Thema en in de widget-stap van de eerste keer */
+  function widgetColorHtml() {
+    const own = ls.get('cp:waccent', null);
+    return `<div class="lbl" style="margin:0 0 8px">Achtergrond</div>
+      <div class="seg">${[['dark', 'Zwart'], ['light', 'Wit']].map(([k, l]) => `<button class="${widgetTheme() === k ? 'on' : ''}" data-wtheme="${k}">${l}</button>`).join('')}</div>
+      <div class="lbl" style="margin:14px 0 8px">Accentkleur</div>
+      <div class="swatches"><button class="sw same${!own ? ' on' : ''}" style="--c:${accent}" data-wc="" aria-label="Zelfde als de app"><i>APP</i></button>${SWATCHES.map(c => `<button class="sw${own === c ? ' on' : ''}" style="--c:${c}" data-wc="${c}" aria-label="Kleur ${c}"></button>`).join('')}
+        <label class="sw custom${own && SWATCHES.indexOf(own) < 0 ? ' on' : ''}" aria-label="Eigen kleur"><input type="color" data-wpick value="${widgetAccent()}"></label></div>
+      <div class="lbl" style="margin:14px 0 8px">Doorzichtigheid <span class="muted" data-walpha-v>${100 - widgetAlpha()}%</span></div>
+      <input type="range" class="wrange" min="0" max="100" step="5" value="${100 - widgetAlpha()}" data-walpha aria-label="Doorzichtigheid van de widget">`;
+  }
+  function bindWidgetColor(root, redraw) {
+    root.querySelectorAll('[data-wtheme]').forEach(b => { b.onclick = () => { ls.set('cp:wtheme', b.dataset.wtheme); widgetLook(); buzz(10); redraw(); }; });
+    const setWAccent = c => { ls.set('cp:waccent', c || null); widgetLook(); buzz(10); redraw(); };
+    root.querySelectorAll('[data-wc]').forEach(b => { b.onclick = () => setWAccent(b.dataset.wc); });
+    const pick = root.querySelector('[data-wpick]');
+    if (pick) pick.onchange = () => setWAccent(pick.value.toLowerCase());
+    /* doorzichtigheid: tijdens het schuiven alleen het voorbeeld bijwerken, bij loslaten de echte widget */
+    const rng = root.querySelector('[data-walpha]');
+    if (rng) {
+      rng.oninput = () => {
+        const a = 100 - +rng.value;
+        root.querySelectorAll('.wprev').forEach(w => w.style.setProperty('--wa', a + '%'));
+        const lv = root.querySelector('[data-walpha-v]'); if (lv) lv.textContent = rng.value + '%';
+      };
+      rng.onchange = () => { ls.set('cp:walpha', 100 - +rng.value); widgetLook(); buzz(8); };
+    }
+  }
+  /* voorbeelden van alle maten naast/onder elkaar (iPhone: klein en middel) */
+  const allWidgetPreviews = () => (IOS ? [['sq', 'Klein'], ['wd', 'Middel']] : [['', '3x1'], ['sq', '2x2'], ['wd', '4x1']])
+    .map(([c, l]) => `<div class="wall"><span class="wall-l">${l}</span>${widgetPreview(c)}</div>`).join('');
+
+  /* eerste keer: de widget in drie stappen. 1) zo ziet hij eruit (alle maten), 2) kies de kleur, 3) op je scherm zetten */
   function askWidgetStep() {
     if (ls.get('cp:widgetAsked', 0)) return askZermelo();
-    if (IOS) {
-      const m = document.createElement('div');
-      m.className = 'modal';
-      m.innerHTML = `<div class="sheet"><h3>Je volgende les op je beginscherm</h3>
-        <p class="small" style="color:var(--fg2)">Met de widget zie je zonder de app te openen welke les je nu of straks hebt, in welk lokaal, en of hij uitvalt.</p>
-        ${widgetPreview('')}${IOS_WIDGET}
-        <p class="small muted">Je kunt dit later teruglezen bij Meer → Zien wat je hierna hebt.</p>
-        <div class="row"><button class="btn" data-a="ok" style="flex:1">Begrepen</button></div></div>`;
-      m.querySelector('[data-a=ok]').onclick = () => { ls.set('cp:widgetAsked', 1); m.remove(); askZermelo(); };
-      app.appendChild(m);
-      return;
-    }
     const m = document.createElement('div');
     m.className = 'modal';
-    m.innerHTML = `<div class="sheet"><h3>Je volgende les op je startscherm</h3>
-      <p class="small" style="color:var(--fg2)">Met de widget zie je zonder de app te openen welke les je nu of straks hebt, in welk lokaal, en of hij uitvalt. Kies een maat:</p>
-      <div data-wsize></div>
-      <p class="small muted">Tik op de widget en je rooster opent. Je kunt hem later ook neerzetten bij Meer → Zien wat je hierna hebt.</p>
-      <div class="ws-help" hidden><p class="small"><b>Zelf neerzetten:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
-      <div class="row"><button class="btn ghost" data-a="later">Later</button><button class="btn" data-a="pin">Op startscherm zetten</button></div></div>`;
+    const where = IOS ? 'beginscherm' : 'startscherm';
     const done = () => { ls.set('cp:widgetAsked', 1); m.remove(); askZermelo(); };
-    const kind = widgetSizePicker(m.querySelector('[data-wsize]'));
-    m.querySelector('[data-a=later]').onclick = done;
-    m.querySelector('[data-a=pin]').onclick = () => {
-      /* Android vraagt zelf waar hij moet komen; kan dat niet op deze telefoon, dan uitleggen hoe het met de hand gaat */
-      if (pinWidget(kind())) return done();
-      m.querySelector('.ws-help').hidden = false;
-      const b = m.querySelector('[data-a=pin]');
-      b.textContent = 'Klaar';
-      b.onclick = done;
-      m.querySelector('[data-a=later]').hidden = true;
+    /* gekozen maat: Android wide3/square/wide4 (zoals pinWidget), iPhone klein/middel (alleen voor het voorbeeld) */
+    const SIZES = IOS ? [['small', 'Klein', 'sq'], ['medium', 'Middel', 'wd']] : WIDGET_SIZES.map(([k, l, c]) => [k, l, c]);
+    let step = 1, size = SIZES[0][0];
+    const cls = () => SIZES.find(x => x[0] === size)[2];
+    const label = () => SIZES.find(x => x[0] === size)[1];
+    const dots = () => `<div class="wsteps">${[1, 2, 3].map(i => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>`;
+    const draw = () => {
+      if (step === 1) {
+        m.innerHTML = `<div class="sheet">${dots()}<h3>Je volgende les op je ${where}</h3>
+          <p class="small" style="color:var(--fg2)">Met de widget zie je zonder de app te openen welke les je nu of straks hebt, in welk lokaal, en wat je daarna hebt. <b>Tik op de maat die je wilt:</b></p>
+          ${SIZES.map(([k, l, c]) => `<button class="wall pick${size === k ? ' on' : ''}" data-size="${k}"><span class="wall-l">${l}${size === k ? ' (gekozen)' : ''}</span>${widgetPreview(c)}</button>`).join('')}
+          ${IOS ? '<p class="small muted">Op je toegangsscherm kan hij ook, onder de klok.</p>' : ''}
+          <div class="row"><button class="btn ghost" data-a="later">Later</button><button class="btn" data-a="next">Volgende</button></div></div>`;
+        m.querySelectorAll('[data-size]').forEach(b => { b.onclick = () => { size = b.dataset.size; buzz(8); draw(); }; });
+      } else if (step === 2) {
+        m.innerHTML = `<div class="sheet">${dots()}<h3>Kies de kleur</h3>
+          <p class="small" style="color:var(--fg2)">Zwart of wit, en een accentkleur. <b>APP</b> is dezelfde kleur als in de app. Later aanpassen kan bij Meer → Thema.</p>
+          ${widgetColorHtml()}
+          <div class="wall"><span class="wall-l">${label()}</span>${widgetPreview(cls())}</div>
+          <div class="row"><button class="btn ghost" data-a="back">Terug</button><button class="btn" data-a="next">Volgende</button></div></div>`;
+        bindWidgetColor(m, draw);
+      } else {
+        m.innerHTML = `<div class="sheet">${dots()}<h3>Op je ${where} zetten</h3>
+          <div class="wall"><span class="wall-l">${label()}</span>${widgetPreview(cls())}</div>
+          ${IOS ? IOS_WIDGET.replace('kies een maat', 'kies <b>' + label().toLowerCase() + '</b>') : `<p class="small" style="color:var(--fg2)">Tik op <b>Op startscherm zetten</b>. Android vraagt daarna waar hij moet komen.</p>
+          <div class="ws-help" hidden><p class="small"><b>Zelf neerzetten:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les (${label()})</b> naar je scherm.</p></div>`}
+          <p class="small muted">Tik op de widget en je rooster opent. Je kunt dit later teruglezen bij Meer → Zien wat je hierna hebt.</p>
+          <div class="row"><button class="btn ghost" data-a="back">Terug</button>${IOS ? '<button class="btn" data-a="later" style="flex:1">Begrepen</button>' : '<button class="btn ghost" data-a="later">Later</button><button class="btn" data-a="pin">Op startscherm zetten</button>'}</div></div>`;
+        if (!IOS) {
+          m.querySelector('[data-a=pin]').onclick = () => {
+            /* Android vraagt zelf waar hij moet komen; kan dat niet op deze telefoon, dan uitleggen hoe het met de hand gaat */
+            if (pinWidget(size)) return done();
+            m.querySelector('.ws-help').hidden = false;
+            const b = m.querySelector('[data-a=pin]');
+            b.textContent = 'Klaar';
+            b.onclick = done;
+            m.querySelector('[data-a=later]').hidden = true;
+          };
+        }
+      }
+      const nx = m.querySelector('[data-a=next]'), bk = m.querySelector('[data-a=back]'), lt = m.querySelector('[data-a=later]');
+      if (nx) nx.onclick = () => { step++; draw(); };
+      if (bk) bk.onclick = () => { step--; draw(); };
+      if (lt) lt.onclick = done;
     };
+    draw();
     app.appendChild(m);
   }
   /* na het inloggen (en na voorwaarden en icoon): één keer vragen om Zermelo te koppelen */
@@ -3130,7 +3285,7 @@
           applyLook(); buzz(10); draw();
         };
       });
-      const setAccent = c => { accent = applyAccent(c); ls.set('cp:accent', accent); buzz(10); draw(); };
+      const setAccent = c => { accent = applyAccent(c); ls.set('cp:accent', accent); widgetLook(); buzz(10); draw(); };
       m.querySelectorAll('[data-c]').forEach(b => { b.onclick = () => setAccent(b.dataset.c); });
       const ci = m.querySelector('#first-accent');
       if (ci) { ci.oninput = () => { accent = applyAccent(ci.value); }; ci.onchange = () => setAccent(ci.value); }
@@ -3164,12 +3319,17 @@
           <div class="lbl" style="margin:14px 0 10px">Accentkleur</div>
           <div class="swatches">${SWATCHES.map(c => `<button class="sw${c === accent ? ' on' : ''}" style="--c:${c}" data-c="${c}" aria-label="Kleur ${c}"></button>`).join('')}
             <label class="sw custom${SWATCHES.indexOf(accent) < 0 ? ' on' : ''}" aria-label="Eigen kleur"><input type="color" id="accent-pick" value="${accent}"></label></div></div>
+        <div class="card-box"><div class="setting-h">Widget</div>
+          <div class="small muted" style="margin:-4px 0 10px">Hoe de widget op je ${IOS ? 'beginscherm' : 'startscherm'} eruitziet.</div>
+          ${widgetColorHtml()}
+          ${widgetPreview('wd', widgetTheme())}</div>
         <div class="card-box"><div class="setting-h">App-icoon</div>${iconGrid(shownIcon())}
           <p class="small muted" style="margin-top:8px">${IOS ? 'Bij het wisselen laat iOS even een melding zien dat het icoon is veranderd.' : 'Na het wisselen kan het icoon op je startscherm even verdwijnen en terugkomen.'}</p></div>`;
       p.querySelector('[data-a=done]').onclick = close;
       p.querySelectorAll('[data-icon]').forEach(b => { b.onclick = () => { setIcon(b.dataset.icon); draw(); }; });
       p.querySelectorAll('[data-theme]').forEach(b => { b.onclick = () => { theme = b.dataset.theme; ls.set('cp:theme', theme); applyLook(); draw(); }; });
-      const setAccent = c => { accent = applyAccent(c); ls.set('cp:accent', accent); draw(); };
+      bindWidgetColor(p, draw); /* achtergrond en eigen accentkleur van de widget (leeg = dezelfde als de app) */
+      const setAccent = c => { accent = applyAccent(c); ls.set('cp:accent', accent); widgetLook(); draw(); };
       p.querySelectorAll('[data-c]').forEach(b => { b.onclick = () => setAccent(b.dataset.c); });
       const ci = p.querySelector('#accent-pick');
       if (ci) { ci.oninput = () => { accent = applyAccent(ci.value); }; ci.onchange = () => setAccent(ci.value); }
@@ -3178,7 +3338,6 @@
     p.closePanel = close;
     draw();
     app.appendChild(p);
-    tip('themes', () => p.isConnected);
   }
   /* ---------- voorwaarden: bij de eerste start akkoord geven ---------- */
   const TERMS_VERSION = 4; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account; 4: nieuwe naam W.S.P, inlogpagina zonder schoollogo, iPhone */
@@ -3239,31 +3398,69 @@
     for (const a of b.attributes) if (a.name.startsWith('data-')) return a.name + ':' + (a.value.includes(':') ? a.value.split(':')[0] : '');
     return null;
   }
+  /* Alleen schuiven als je zelf net een andere keuze in déze rij aantikte (zijwaarts, van de oude naar de nieuwe knop).
+     Bij het openen van een scherm, of als er iets boven de rij verschuift (rooster laadt), staat het vlakje meteen op
+     zijn plek: vroeger kwam het dan van ergens anders aanschuiven of omhoog, en dat gaf onrust */
+  let segTap = { t: 0, key: null };
+  app.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.seg > button, .modes > button');
+    if (b) segTap = { t: performance.now(), key: segKey(b.parentElement) };
+  }, true);
+  /* eerst alles opmeten, dan pas schrijven: meten en schrijven door elkaar liet de browser per rij opnieuw rekenen (haperen) */
+  /* waar het vlakje per rij het laatst stond, en een schuifbeweging die nog bezig is (een scherm wordt na een tik soms
+     twee keer vlak na elkaar getekend: dan loopt de beweging gewoon door in plaats van te springen) */
+  const segPos = new Map();
+  let segAnim = { key: null, from: null, t: 0 };
   function animSegs() {
+    const now = performance.now();
+    const tapped = now - segTap.t < 700 ? segTap.key : null;
+    const jobs = [];
     sh.querySelectorAll('.seg, .modes').forEach(box => {
       const key = segKey(box);
       const btns = [...box.querySelectorAll(':scope > button')], on = btns.findIndex(b => b.classList.contains('on'));
       if (!key || on < 0 || !box.offsetParent) return;
-      const prev = segLast.get(key);
       segLast.set(key, on);
-      const place = (el, p) => Object.assign(p.style, { left: el.offsetLeft + 'px', top: el.offsetTop + 'px', width: el.offsetWidth + 'px', height: el.offsetHeight + 'px' });
-      let pill = box.querySelector(':scope > .segpill');
-      if (!pill) {
-        pill = document.createElement('i');
-        pill.className = 'segpill';
-        box.prepend(pill);
-        box.classList.add('has-pill');
-        pill.style.transition = 'none';
-        place(btns[prev != null && btns[prev] ? prev : on], pill); /* begin bij de vorige keuze (net opnieuw getekend) */
-        void pill.offsetWidth;
-        pill.style.transition = '';
+      const pill = box.querySelector(':scope > .segpill');
+      const rect = el => ({ left: el.offsetLeft + 'px', top: el.offsetTop + 'px', width: el.offsetWidth + 'px', height: el.offsetHeight + 'px' });
+      const to = rect(btns[on]);
+      let from = null;
+      if (key === tapped) {
+        /* nog bezig met schuiven: vanaf hetzelfde beginpunt verder; anders vanaf waar het vlakje stond */
+        const start = segAnim.key === key && now - segAnim.t < 320 ? segAnim.from : segPos.get(key);
+        if (start && (start.left !== to.left || start.width !== to.width)) from = start;
       }
-      place(btns[on], pill);
+      segPos.set(key, to);
+      jobs.push({ box, pill, slide: !!from, to, from: from && !pill ? from : null });
+      if (from && !(segAnim.key === key && segAnim.from === from)) segAnim = { key, from, t: now };
     });
+    const moving = [];
+    jobs.forEach(j => {
+      if (!j.pill) {
+        j.pill = document.createElement('i');
+        j.pill.className = 'segpill';
+        j.box.prepend(j.pill);
+        j.box.classList.add('has-pill');
+      }
+      if (j.from) { j.pill.style.transition = 'none'; Object.assign(j.pill.style, j.from); moving.push(j); } /* nieuw vlakje na een tik: begin bij de vorige keuze */
+      else if (j.slide) { j.pill.style.transition = ''; Object.assign(j.pill.style, j.to); } /* bestaand vlakje na een tik: laten schuiven (een lopende overgang loopt door) */
+      else { j.pill.style.transition = 'none'; Object.assign(j.pill.style, j.to); } /* niet getikt: meteen op zijn plek, zonder animatie */
+    });
+    if (moving.length) {
+      void moving[0].pill.offsetWidth; /* één keer, voor alle schuivende vlakjes samen */
+      moving.forEach(j => { j.pill.style.transition = ''; Object.assign(j.pill.style, j.to); });
+    }
   }
   let segRaf = 0;
-  new MutationObserver(() => { if (!segRaf) segRaf = requestAnimationFrame(() => { segRaf = 0; animSegs(); }); })
-    .observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  /* alleen opnieuw plaatsen als er iets aan een knoppenrij verandert (een knop die "on" wordt, of een nieuwe rij),
+     niet bij elke wijziging in de app (draaiend vernieuwen-icoontje, meldingen, het nu-streepje...) */
+  const segRow = n => n && n.nodeType === 1 && (n.matches('.seg, .modes') || !!n.closest('.seg, .modes') || !!n.querySelector('.seg, .modes'));
+  new MutationObserver(recs => {
+    if (segRaf) return;
+    const hit = recs.some(r => r.type === 'attributes'
+      ? r.target.tagName === 'BUTTON' && !!r.target.closest('.seg, .modes')
+      : [...r.addedNodes].some(segRow));
+    if (hit) segRaf = requestAnimationFrame(() => { segRaf = 0; animSegs(); });
+  }).observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
   /* telefoon gedraaid (of het scherm verandert van grootte): alles wat met pixels op zijn plek is gezet opnieuw plaatsen,
      anders blijven het vlakje achter Dag/Week, de kolom van vandaag, het nu-streepje en de verkorte lessen op de oude plek staan */
@@ -3301,31 +3498,7 @@
     TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
     Object.values(TIPS).forEach(t => { t[1] = t[1].replace(/startscherm/g, 'beginscherm'); }); /* zo heet het op iPhone */
   }
-  const tipSeen = k => !!(ls.get('cp:tips', {}) || {})[k];
-  /* toont de uitleg als die nog niet gezien is; zit er iets anders in de weg (een venster), dan later nog eens proberen */
-  /* over: de uitleg hoort bij het venster dat net open ging, dus daar overheen tonen */
-  function tip(k, when, over) {
-    if (tipSeen(k) || !TIPS[k]) return;
-    /* nieuw account: de rondleiding legt het uit, geen losse blokjes ervoor */
-    if (!ls.get('cp:tourDone', 0) && !store.init) return;
-    const ok = when || (() => true);
-    let tries = 0;
-    const attempt = () => {
-      if (tipSeen(k) || !ok()) return;
-      if (app.querySelector(over ? '.tipcard, .ov, .terms, .tour' : '.tipcard, .modal, .ov, .terms, .tour')) { if (++tries < 40) setTimeout(attempt, 800); return; }
-      const seen = ls.get('cp:tips', {}) || {};
-      seen[k] = 1;
-      ls.set('cp:tips', seen);
-      const [title, text] = TIPS[k];
-      const w = document.createElement('div');
-      w.className = 'tipwrap';
-      w.innerHTML = `<div class="tipcard" role="dialog" aria-label="${esc(title)}"><div class="tip-h"><span class="tip-i">i</span><b>${esc(title)}</b></div><p>${text}</p><button class="btn" data-a="ok">Snap ik</button></div>`;
-      const close = () => { w.classList.add('out'); setTimeout(() => w.remove(), 220); };
-      w.onclick = e => { if (e.target === w || e.target.closest('[data-a=ok]')) close(); };
-      app.appendChild(w);
-    };
-    setTimeout(attempt, 350);
-  }
+  /* (de losse uitlegblokjes per scherm zijn weg: de rondleiding hieronder legt alles uit; TIPS zijn de teksten daarvan) */
   /* ---------- rondleiding voor een nieuw account: na inloggen en Zermelo langs alle onderdelen ----------
      het onderdeel wordt uitgelicht (de rest donker), de app gaat er zelf naartoe, met uitleg erbij */
   const TOUR = [
@@ -3407,7 +3580,9 @@
       const [title, tipText] = TIPS[k];
       /* bij Thema sta je nog in Meer, niet in het themascherm zelf */
       const text = k === 'themes' ? 'Tik hier om <b>Wit</b> of <b>Zwart</b> te kiezen, met je eigen accentkleur en een app-icoontje voor je ' + (IOS ? 'beginscherm' : 'startscherm') + '.' : tipText;
-      card.innerHTML = `<div class="tip-h"><span class="tip-i">${i + 1}</span><b>${esc(title)}</b><small>${i + 1} van ${TOUR.length}</small></div><p>${text}</p>
+      /* voortgang als streepjes bovenaan (zoals bij de widget-stap), in plaats van "1 van 8" */
+      card.innerHTML = `<div class="wsteps" aria-label="Stap ${i + 1} van ${TOUR.length}">${TOUR.map((_, n) => `<i class="${n < i ? 'done' : n === i ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="tip-h"><span class="tip-i">${i + 1}</span><b>${esc(title)}</b></div><p>${text}</p>
         <div class="tour-btns"><button class="btn" data-a="next">${i === TOUR.length - 1 ? 'Klaar' : 'Volgende'}</button></div>`;
       card.classList.add('in');
       card.querySelector('[data-a=next]').onclick = () => { buzz(8); if (++i >= TOUR.length) finish(); else show(); };
@@ -3415,16 +3590,6 @@
     show();
   }
 
-  /* uitleg bij een kaart in Meer zodra die voor het grootste deel in beeld komt */
-  function tipWhenSeen(el, k) {
-    if (!el || tipSeen(k) || !('IntersectionObserver' in window)) return;
-    const io = new IntersectionObserver(es => {
-      if (!es.some(e => e.isIntersecting)) return;
-      io.disconnect();
-      tip(k, () => el.isConnected && S.tab === 'meer');
-    }, { threshold: 0.6 });
-    io.observe(el);
-  }
 
   /* ---------- updates: zelf kijken of er een nieuwe versie op GitHub staat en die installeren ---------- */
   const UPD_API = 'https://api.github.com/repos/wesssaa/W.S.P/releases/latest';
@@ -3610,7 +3775,6 @@
         ${perm ? '<div class="row"><button class="btn" data-a="set" style="flex:1">Instellen</button></div>' : ''}<div data-stuck></div></div>`;
       /* eerste keer bijwerken is verplicht: eerst lezen, dan instellen; alleen na 2 keer zonder resultaat een uitweg */
       if (perm) readFirst(m.querySelector('[data-a=set]'), () => { tries++; Native.openInstallSettings(); });
-      if (tries >= 2) stuckLink(m, go);
       if (tries >= 2) stuckLink(m, go);
     };
     const msg = t => { const el = m.querySelector('[data-updmsg]'); if (el) el.textContent = t; };
@@ -4054,9 +4218,6 @@
       if (nsys) nsys.onclick = () => Native.openNotifSettings();
       const rb = main.querySelector('[data-a=remind]');
       if (rb) rb.onclick = () => openReminders(draw);
-      tipWhenSeen(main.querySelector('[data-calcbox]'), 'calc');
-      tipWhenSeen(main.querySelector('[data-a=ownadd]').closest('.card-box'), 'ownrem');
-      tipWhenSeen(main.querySelector('[data-mode]') && main.querySelector('[data-mode]').closest('.card-box'), 'meldingen');
       main.querySelector('[data-a=ownadd]').onclick = () => ownRemSheet(null, r => { ownRem.set(ownRem.get().concat(r)); buzz(10); toast('Reminder gezet: ' + ownRemLabel(r)); draw(); });
       main.querySelectorAll('[data-own]').forEach(b => {
         b.onclick = () => ownRemSheet(own.find(r => r.id === b.dataset.own), r => {
@@ -4097,7 +4258,7 @@
         inp.onkeydown = e => { if (e.key === 'Enter') search(); };
       }
       const zon = main.querySelector('[data-a=zmon]');
-      if (zon) zon.onclick = zermeloSheet;
+      if (zon) zon.onclick = () => zermeloSheet();
       const zoff = main.querySelector('[data-a=zmoff]');
       if (zoff) zoff.onclick = () => { zermeloUnlink(); S.rooster = {}; S.fresh = {}; try { localStorage.removeItem('cp:wk:r'); } catch (e) {} draw(); };
       main.querySelector('[data-a=reset]').onclick = () => {
@@ -4183,25 +4344,50 @@
     if (!SWIPE_TABS.includes(S.tab) || e.touches.length !== 1 || e.target.closest('.seg') || sh.querySelector('.modal, .panel, .ov')) { swipe = null; return; }
     swipe = { x: e.touches[0].clientX, y: e.touches[0].clientY, axis: null };
   }, { passive: true });
+  /* vegen: per beweging alleen rekenen; het schrijven gebeurt één keer per beeld (requestAnimationFrame).
+     Element, breedte en "andere week?" worden één keer opgezocht bij het begin van de veeg, niet bij elke beweging */
+  let swipeRaf = 0;
   main.addEventListener('touchmove', e => {
     if (!swipe) return;
     const dx = e.touches[0].clientX - swipe.x, dy = e.touches[0].clientY - swipe.y;
-    if (!swipe.axis && Math.hypot(dx, dy) > 10) swipe.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-    if (swipe.axis !== 'x' || !page()) return;
-    /* bij Cijfers voorbij de eerste of laatste periode: veert terug */
-    const k = canSwipe(dx < 0 ? 1 : -1) ? 0.9 : 0.25;
-    page().style.transition = 'none';
-    page().style.transform = `translateX(${dx * k}px)`;
-    page().style.opacity = String(1 - Math.min(Math.abs(dx) / main.clientWidth, 1) * 0.5);
-    swipe.week = weekChanges(dx < 0 ? 1 : -1);
-    const lb = dateLbl();
-    if (lb) { lb.style.transition = 'none'; lb.style.opacity = swipe.week ? String(1 - Math.min(Math.abs(dx) / main.clientWidth, 1) * 0.7) : ''; }
+    if (!swipe.axis && Math.hypot(dx, dy) > 10) {
+      swipe.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (swipe.axis === 'x') {
+        swipe.el = page(); swipe.w = main.clientWidth || 1; swipe.lb = dateLbl();
+        swipe.can = { 1: canSwipe(1), '-1': canSwipe(-1) }; swipe.wk = { 1: weekChanges(1), '-1': weekChanges(-1) };
+      }
+    }
+    if (swipe.axis !== 'x' || !swipe.el) return;
+    swipe.dx = dx;
+    if (swipeRaf) return;
+    swipeRaf = requestAnimationFrame(() => {
+      swipeRaf = 0;
+      const s = swipe;
+      if (!s || !s.el) return;
+      const d = s.dx < 0 ? 1 : -1;
+      /* bij Cijfers voorbij de eerste of laatste periode: veert terug */
+      const k = s.can[d] ? 0.9 : 0.25, f = Math.min(Math.abs(s.dx) / s.w, 1);
+      s.week = s.wk[d];
+      s.el.style.transition = 'none';
+      s.el.style.transform = `translateX(${s.dx * k}px)`;
+      s.el.style.opacity = String(1 - f * 0.5);
+      if (s.lb) { s.lb.style.transition = 'none'; s.lb.style.opacity = s.week ? String(1 - f * 0.7) : ''; }
+    });
   }, { passive: true });
   const settle = el => { if (!el) return; el.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s'; el.style.transform = ''; el.style.opacity = ''; };
+  /* veeg onderbroken (terug-gebaar van Android vanaf de rand, meldingenbalk, iOS): alles netjes terugzetten,
+     anders bleef de pagina half verschoven en half doorzichtig staan */
+  main.addEventListener('touchcancel', () => {
+    if (swipeRaf) { cancelAnimationFrame(swipeRaf); swipeRaf = 0; }
+    if (swipe && swipe.axis === 'x') { settle(page()); const lb = dateLbl(); if (lb) { lb.style.transition = 'opacity .2s'; lb.style.opacity = ''; } }
+    swipe = null;
+    if (pull) { pull = null; ptr.style.transition = ''; ptr.classList.remove('ready'); ptr.style.transform = ''; ptr.style.opacity = ''; }
+  }, { passive: true });
   main.addEventListener('touchend', e => {
     if (!swipe || !SWIPE_TABS.includes(S.tab)) return;
     const t = e.changedTouches[0], dx = t.clientX - swipe.x, axis = swipe.axis;
     swipe = null;
+    if (swipeRaf) { cancelAnimationFrame(swipeRaf); swipeRaf = 0; }
     if (axis !== 'x') return;
     if (Math.abs(dx) < 70 || !canSwipe(dx < 0 ? 1 : -1)) { settle(page()); const lb = dateLbl(); if (lb) { lb.style.transition = 'opacity .2s'; lb.style.opacity = ''; } return; }
     const dir = dx < 0 ? 1 : -1;
@@ -4259,7 +4445,7 @@
     const lb = dateLbl();
     if (lb && week) { lb.style.transition = 'none'; lb.style.opacity = '0'; void lb.offsetWidth; lb.style.transition = 'opacity .28s ease-out'; lb.style.opacity = ''; }
     const inEl = page();
-    if (inEl) {
+    if (inEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       inEl.style.transition = 'none';
       inEl.style.transform = `translateX(${dir * 40}%)`;
       inEl.style.opacity = '0';
@@ -4329,12 +4515,7 @@
   /* huiswerk van deze week op de achtergrond, voor het getalletje bij Huiswerk (op 4G/5G alleen als huiswerk daar mag) */
   setTimeout(() => {
     const key = S.hwMonday.getTime();
-    if (S.tab === 'huiswerk' || S.fresh['hw' + key]) return;
-    try {
-      if (Native && Native.onMobile && Native.onMobile()) {
-        if ((JSON.parse(Native.getSettings()).n_mob_h_mode || DATA_DEF.h) === 'off') return;
-      }
-    } catch (e) {}
+    if (S.tab === 'huiswerk' || S.fresh['hw' + key] || !hwAllowed()) return;
     refreshWeek('hw', key, S.hwMonday).then(updateNav);
   }, 3500);
   saveRules();

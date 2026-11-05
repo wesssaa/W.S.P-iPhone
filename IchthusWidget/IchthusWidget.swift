@@ -6,6 +6,11 @@ import SwiftUI
  De app zet de lessen in een gedeelde opslag (app group); SideStore past de naam van die groep aan en zet hem in ALTAppGroups.
  */
 enum Shared {
+    /* widget met witte achtergrond? (Meer → Thema → Widget); standaard zwart */
+    static var light: Bool { defaults?.string(forKey: "w_theme") == "light" }
+    /* hoe dicht de achtergrond is (Meer → Thema → Widget): 1 = dicht, 0 = doorzichtig */
+    static var opacity: Double { (defaults?.object(forKey: "w_alpha") as? Int).map { Double(max(0, min(100, $0))) / 100 } ?? 1 }
+
     /* één keer opzoeken: het profiel lezen kost tijd, en de widget vraagt dit voor elk van de ±150 standen in een tijdlijn */
     static let defaults: UserDefaults? = group.flatMap { UserDefaults(suiteName: $0) }
 
@@ -43,11 +48,12 @@ struct Entry: TimelineEntry {
     let next: String?
     let uit: Bool
     let accent: Color
+    var light: Bool = false // achtergrond wit (Meer → Thema → Widget) in plaats van zwart
 }
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> Entry {
-        Entry(date: Date(), when: "STRAKS · 10:40", vak: "EN", lok: "b112", info: "4e uur · 10:40–11:25", next: "Daarna 5e uur · WI · a138", uit: false, accent: .yellow)
+        Entry(date: Date(), when: "Straks om 10:40, 4e uur", vak: "EN", lok: "b112", info: "4e uur, 10:40–11:25", next: "Daarna WI in a138, 5e uur", uit: false, accent: .yellow, light: Shared.light)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
@@ -76,28 +82,37 @@ struct Provider: TimelineProvider {
 
     func entry(at now: Date, _ all: [Lesson]) -> Entry {
         let accent = Color(hex: Shared.defaults?.string(forKey: "w_accent") ?? "") ?? Color(red: 1, green: 0.83, blue: 0.3)
+        let light = Shared.light
         // lessen die uitvallen tellen als "nu" niet mee
         var cur: Lesson?, next: Lesson?, after: Lesson?
         for l in all where l.e > now {
             if l.s <= now && cur == nil && !l.uit { cur = l; continue }
             if l.s > now { if next == nil { next = l } else if after == nil { after = l; break } }
         }
-        /* wat en waar je daarna hebt, met het lesuur (zoals de 4x1 op Android): "Daarna 3e uur · AK · b151" */
-        let daarna = { (l: Lesson) in "Daarna \(l.uur.isEmpty ? time(l.s) : l.uur + "e uur") · \(l.label)" + (l.uit ? " (valt uit)" : l.lok.isEmpty ? "" : " · \(l.lok)") }
+        /* wat en waar je daarna hebt (zoals op Android): "Daarna AK in b151, 3e uur"; uitval: "Daarna AK, valt uit" */
+        let daarna = { (l: Lesson) -> String in
+            if l.uit { return "Daarna \(l.label), valt uit" }
+            return "Daarna \(l.label)" + (l.lok.isEmpty ? "" : " in \(l.lok)") + ", " + (l.uur.isEmpty ? "om \(time(l.s))" : "\(l.uur)e uur")
+        }
         if let c = cur {
             let left = max(1, Int((c.e.timeIntervalSince(now) + 59) / 60))
-            return Entry(date: now, when: "NU · NOG \(left) MIN", vak: c.label, lok: c.lok, info: info(c), next: next.map(daarna), uit: false, accent: accent)
+            return Entry(date: now, when: "Nu, \(uurUp(c))nog \(left) min", vak: c.label, lok: c.lok, info: info(c), next: next.map(daarna), uit: false, accent: accent, light: light)
         }
         if let n = next {
-            let when = (Calendar.current.isDate(n.s, inSameDayAs: now) ? "STRAKS" : dayWord(n.s, now).uppercased()) + " · " + time(n.s)
+            /* "Straks om 10:40, 4e uur" / "Morgen om 08:50, 2e uur" */
+            let day = Calendar.current.isDate(n.s, inSameDayAs: now) ? "Straks" : dayWord(n.s, now).capitalized
+            let when = day + " om " + time(n.s) + (n.uur.isEmpty ? "" : ", \(n.uur)e uur")
             let a = after.flatMap { Calendar.current.isDate($0.s, inSameDayAs: n.s) ? daarna($0) : nil }
-            return Entry(date: now, when: when, vak: n.label, lok: n.uit ? "" : n.lok, info: info(n), next: a, uit: n.uit, accent: accent)
+            return Entry(date: now, when: when, vak: n.label, lok: n.uit ? "" : n.lok, info: info(n), next: a, uit: n.uit, accent: accent, light: light)
         }
         return Entry(date: now, when: "W.S.P", vak: all.isEmpty ? "Rooster" : "Geen lessen meer", lok: "",
-                     info: all.isEmpty ? "Open de app om je rooster te laden" : "Open de app voor je rooster", next: nil, uit: false, accent: accent)
+                     info: all.isEmpty ? "Open de app om je rooster te laden" : "Open de app voor je rooster", next: nil, uit: false, accent: accent, light: light)
     }
 
-    func info(_ l: Lesson) -> String { (l.uur.isEmpty ? "" : "\(l.uur)e uur · ") + "\(time(l.s))–\(time(l.e))" + (l.uit ? " · valt uit" : "") }
+    /* "3e uur, " bovenaan tijdens een les, zoals op Android (leeg als het uur onbekend is) */
+    func uurUp(_ l: Lesson) -> String { l.uur.isEmpty ? "" : "\(l.uur)e uur, " }
+
+    func info(_ l: Lesson) -> String { (l.uur.isEmpty ? "" : "\(l.uur)e uur, ") + "\(time(l.s))–\(time(l.e))" + (l.uit ? ", valt uit" : "") }
 
     func time(_ d: Date) -> String {
         let c = Calendar.current.dateComponents([.hour, .minute], from: d)
@@ -118,14 +133,16 @@ struct WidgetView: View {
     var body: some View {
         content
             .widgetURL(URL(string: "ichthusplus://rooster"))
-            .modifier(Background())
+            .modifier(Background(light: e.light))
+            // tekstkleuren (primary/secondary) volgen de gekozen achtergrond, niet de donkere modus van de iPhone
+            .environment(\.colorScheme, e.light ? .light : .dark)
     }
 
     @ViewBuilder var content: some View {
         switch family {
         case .accessoryInline:
             // één regel boven de klok op het toegangsscherm
-            Text(e.vak == "Rooster" || e.vak == "Geen lessen meer" ? "W.S.P" : "\(e.when.replacingOccurrences(of: "STRAKS · ", with: "")) \(e.vak)\(e.uit ? " valt uit" : e.lok.isEmpty ? "" : " · " + e.lok)")
+            Text(e.vak == "Rooster" || e.vak == "Geen lessen meer" ? "W.S.P" : "\(e.vak)\(e.uit ? " valt uit" : e.lok.isEmpty ? "" : " in " + e.lok), \(e.when.replacingOccurrences(of: "Straks om ", with: ""))")
         case .accessoryCircular:
             VStack(spacing: 0) {
                 Text(e.vak).font(.system(size: 15, weight: .heavy)).minimumScaleFactor(0.5).lineLimit(1)
@@ -143,7 +160,7 @@ struct WidgetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         default:
             VStack(alignment: .leading, spacing: 4) {
-                Text(e.when).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundColor(e.accent).lineLimit(1)
+                Text(e.when).font(.system(size: 12, weight: .bold)).foregroundColor(e.accent).lineLimit(1)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(e.vak).font(.system(size: family == .systemSmall ? 28 : 32, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
                     if !e.lok.isEmpty { Text(e.lok).font(.system(size: 15, weight: .semibold, design: .monospaced)).foregroundColor(.secondary).lineLimit(1) }
@@ -164,14 +181,16 @@ struct WidgetView: View {
 /* iOS 17 wil de achtergrond via containerBackground; oudere versies gewoon met padding (niet op het toegangsscherm) */
 struct Background: ViewModifier {
     @Environment(\.widgetFamily) var family
+    let light: Bool
     func body(content: Content) -> some View {
         let lock = [WidgetFamily.accessoryInline, .accessoryCircular, .accessoryRectangular].contains(family)
+        let bg = (light ? Color.white : Color(red: 0.067, green: 0.067, blue: 0.078)).opacity(Shared.opacity)
         if #available(iOS 17, *) {
-            content.containerBackground(for: .widget) { lock ? Color.clear : Color(UIColor.systemBackground) }
+            content.containerBackground(for: .widget) { lock ? Color.clear : bg }
         } else if lock {
             content
         } else {
-            content.padding()
+            content.padding().background(bg)
         }
     }
 }
