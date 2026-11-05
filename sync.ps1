@@ -45,6 +45,7 @@ Copy-Item "$app\art\crh-launch.png" "$ls\mark.png" -Force
 '{"images":[{"filename":"mark.png","idiom":"universal","scale":"3x"}],"info":{"author":"xcode","version":1}}' | Set-Content "$ls\Contents.json" -Encoding ascii
 $lc = "$cat\LaunchBackground.colorset"
 New-Item -ItemType Directory -Force $lc | Out-Null
-'{"colors":[{"color":{"color-space":"srgb","components":{"red":"0xF3","green":"0xF1","blue":"0xEC","alpha":"1.000"}},"idiom":"universal"}],"info":{"author":"xcode","version":1}}' | Set-Content "$lc\Contents.json" -Encoding ascii
+# licht: achtergrond van het witte thema; staat de iPhone op donker, dan die van het zwarte thema (geen witte flits)
+'{"colors":[{"color":{"color-space":"srgb","components":{"red":"0xF3","green":"0xF1","blue":"0xEC","alpha":"1.000"}},"idiom":"universal"},{"appearances":[{"appearance":"luminosity","value":"dark"}],"color":{"color-space":"srgb","components":{"red":"0x0D","green":"0x0C","blue":"0x0A","alpha":"1.000"}},"idiom":"universal"}],"info":{"author":"xcode","version":1}}' | Set-Content "$lc\Contents.json" -Encoding ascii
 
 'Klaar: web-bestanden en iconen bijgewerkt'

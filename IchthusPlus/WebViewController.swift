@@ -167,7 +167,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     // MARK: - zichtbaar maken
 
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "cpRetry" { web.alpha = 0; start(); return }
+        // alleen de foutpagina van de app zelf (hoofdvenster) mag opnieuw laten proberen, geen ingebedde pagina
+        if message.name == "cpRetry" { if message.frameInfo.isMainFrame { web.alpha = 0; start() }; return }
         guard message.name == "cpReady", Self.isPortal(message.frameInfo.request.url ?? web.url) || web.url == Self.shellURL else { return }
         ready = true
         if let t = pendingTab { pendingTab = nil; js("window.__cpApp ? window.__cpApp.go('\(t)') : (window.__cpStartTab='\(t)')") }
@@ -207,7 +208,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url, let scheme = url.scheme?.lowercased() else { return decisionHandler(.allow) }
         if ["http", "https", "about", "data", "blob"].contains(scheme) { return decisionHandler(.allow) }
-        UIApplication.shared.open(url)
+        // een andere app openen (bijv. SideStore of mail) mag alleen vanuit het hoofdvenster, niet vanuit een ingebedde pagina
+        if action.targetFrame?.isMainFrame ?? true { UIApplication.shared.open(url) }
         decisionHandler(.cancel)
     }
 

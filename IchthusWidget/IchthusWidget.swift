@@ -6,16 +6,17 @@ import SwiftUI
  De app zet de lessen in een gedeelde opslag (app group); SideStore past de naam van die groep aan en zet hem in ALTAppGroups.
  */
 enum Shared {
-    static var defaults: UserDefaults? { group.flatMap { UserDefaults(suiteName: $0) } }
+    /* één keer opzoeken: het profiel lezen kost tijd, en de widget vraagt dit voor elk van de ±150 standen in een tijdlijn */
+    static let defaults: UserDefaults? = group.flatMap { UserDefaults(suiteName: $0) }
 
     /* de echte naam van de groep (SideStore maakt er group.nl.cijferpacks.app.<team> van): eerst ALTAppGroups, dan het profiel
        in de widget zelf. Alleen een groep waar iOS echt toegang toe geeft telt, anders leest de widget iets anders dan de app schrijft */
-    static var group: String? {
+    static let group: String? = {
         var names = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]) ?? []
         names += profileGroups()
         names.append("group.nl.cijferpacks.app")
         return names.first { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil }
-    }
+    }()
 
     static func profileGroups() -> [String] {
         guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
@@ -46,7 +47,7 @@ struct Entry: TimelineEntry {
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> Entry {
-        Entry(date: Date(), when: "STRAKS · 10:40", vak: "EN", lok: "b112", info: "4e uur · 10:40–11:25", next: "Daarna 11:25 · WI · a138", uit: false, accent: .yellow)
+        Entry(date: Date(), when: "STRAKS · 10:40", vak: "EN", lok: "b112", info: "4e uur · 10:40–11:25", next: "Daarna 5e uur · WI · a138", uit: false, accent: .yellow)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
@@ -81,7 +82,8 @@ struct Provider: TimelineProvider {
             if l.s <= now && cur == nil && !l.uit { cur = l; continue }
             if l.s > now { if next == nil { next = l } else if after == nil { after = l; break } }
         }
-        let daarna = { (l: Lesson) in "Daarna \(time(l.s)) · \(l.label)" + (l.uit ? " (valt uit)" : l.lok.isEmpty ? "" : " · \(l.lok)") }
+        /* wat en waar je daarna hebt, met het lesuur (zoals de 4x1 op Android): "Daarna 3e uur · AK · b151" */
+        let daarna = { (l: Lesson) in "Daarna \(l.uur.isEmpty ? time(l.s) : l.uur + "e uur") · \(l.label)" + (l.uit ? " (valt uit)" : l.lok.isEmpty ? "" : " · \(l.lok)") }
         if let c = cur {
             let left = max(1, Int((c.e.timeIntervalSince(now) + 59) / 60))
             return Entry(date: now, when: "NU · NOG \(left) MIN", vak: c.label, lok: c.lok, info: info(c), next: next.map(daarna), uit: false, accent: accent)
@@ -135,7 +137,8 @@ struct WidgetView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(e.when).font(.system(size: 11, weight: .bold)).widgetAccentable()
                 Text(e.vak + (e.lok.isEmpty ? "" : " · " + e.lok)).font(.system(size: 15, weight: .heavy)).lineLimit(1)
-                Text(e.uit ? "Valt uit" : e.info).font(.system(size: 11)).lineLimit(1)
+                /* toegangsscherm: op de derde regel wat en waar je daarna hebt (als dat er is), anders de tijden */
+                Text(e.uit ? "Valt uit" : e.next ?? e.info).font(.system(size: 11)).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         default:

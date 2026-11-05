@@ -104,9 +104,23 @@
   /* ---------- ophalen ---------- */
   async function fetchDoc(url, mustHave) {
     let r;
+    /* geen internet of het portaal is even onbereikbaar: dat is iets anders dan uitgelogd zijn */
+    const offline = () => Object.assign(new Error('Geen verbinding met het portaal. Je ziet de laatst opgehaalde gegevens.'), { offline: true });
     try { r = await fetch(url, { credentials: 'same-origin', cache: 'no-store' }); }
-    catch (e) { throw new Error('login'); }
-    if (!r.ok || new URL(r.url).hostname !== HOST) throw new Error('login');
+    catch (e) {
+      /* een verlopen sessie stuurt je door naar Microsoft (ander adres); fetch mag dat niet volgen en geeft dan dezelfde
+         fout als zonder internet. Met internet nog even kijken of het een doorverwijzing was: dan ben je echt uitgelogd */
+      if (navigator.onLine !== false) {
+        try {
+          const r2 = await fetch(url, { credentials: 'same-origin', cache: 'no-store', redirect: 'manual' });
+          if (r2.type === 'opaqueredirect') throw new Error('login');
+        } catch (e2) { if (e2 && e2.message === 'login') throw e2; }
+      }
+      throw offline();
+    }
+    /* alleen een doorverwijzing naar de inlogpagina (ander adres) betekent echt uitgelogd */
+    if (new URL(r.url).hostname !== HOST) throw new Error('login');
+    if (!r.ok) throw r.status === 401 || r.status === 403 ? new Error('login') : offline();
     syncClock(r);
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
     if (mustHave && !doc.querySelector(mustHave)) {
@@ -244,7 +258,7 @@
     const draw = () => {
       const mode = r ? r.m : 'std';
       const dOpts = mode === 'every' ? [2, 3, 4, 5, 7] : [1, 2, 3, 4, 5, 7];
-      m.innerHTML = `<div class="sheet"><h3>${title}</h3>
+      m.innerHTML = `<div class="sheet"><h3>${esc(title)}</h3>
         <div class="lbl">Herinnering</div>
         <div class="seg" style="flex-wrap:wrap">${(allowDefault ? [['std', 'Standaard']] : []).concat([['off', 'Uit'], ['once', '1×'], ['daily', 'Elke dag'], ['every', 'Om de … dagen']])
           .map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-rm="${k}">${l}</button>`).join('')}</div>
@@ -462,8 +476,12 @@
       if (seen) it.badge = !(it.id in seen) ? 'NIEUW' : seen[it.id] !== it.huiswerk ? 'AANGEPAST' : '';
       if (!it.badge && pending.has(it.id)) it.badge = 'NIEUW'; /* nog niet bekeken: label blijft staan */
       if (it.badge) pending.add(it.id);
+      if (it.id in next) delete next[it.id]; /* opnieuw achteraan, zodat de oudste bovenaan staan */
       next[it.id] = it.huiswerk;
     });
+    /* niet eindeloos laten groeien: alleen de laatste 400 huiswerkitems onthouden */
+    const ks = Object.keys(next);
+    if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(k => { delete next[k]; });
     ls.set('cp:hwseen', next);
     ls.set('cp:hwNew', [...pending].slice(-50));
     /* de herinneringen op Android kennen zo meteen het nieuwste huiswerk */
@@ -998,6 +1016,11 @@
   .hdate { display: flex; white-space: nowrap; overflow: hidden; }
   .hdate .hg { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .hdate .hdd { flex-shrink: 0; }
+  /* datum rechtsboven, naast de vernieuwknop: dag erboven, datum eronder */
+  .hday { margin: 0 -4px 0 0; align-self: center; display: grid; justify-items: end; gap: 2px; font: 600 11px/1 var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .hday b { color: var(--accent-text); font-weight: 700; }
+  /* smalle telefoon: letters van de groet iets dichter op elkaar, zodat ook een langere naam past */
+  @media (max-width: 400px) { .hdate { letter-spacing: .04em; } .hday { letter-spacing: .06em; } header { gap: 10px; } }
   .chip.locked { position: relative; overflow: hidden; background: color-mix(in srgb, var(--accent) 16%, var(--surface2)); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
   .chip.locked .blur { filter: blur(5px); user-select: none; }
   .chip.locked::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
@@ -1049,6 +1072,7 @@
   .wprev.sq { width: 150px; height: 150px; margin-inline: auto; align-content: center; box-sizing: border-box; }
   .wprev.sq div { flex-direction: column; align-items: flex-start; gap: 4px; }
   .wprev.sq b { font-size: 30px; }
+  .wprev em.nx { color: #80808a; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wprev.wd { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 18px; }
   .wprev.wd div { order: -1; gap: 8px; }
   .wprev.wd p { margin: 0; display: grid; gap: 1px; min-width: 0; flex: 1; }
@@ -1057,20 +1081,20 @@
   input.secret { -webkit-text-security: disc; }
   .tpick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
   .tpick button { appearance: none; border: 0; background: none; padding: 6px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--fg2); font: 700 14px var(--f-body); }
-  .tp-rec { font: 700 11px var(--f-mono); font-style: normal; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); background: #ffd34d; padding: 3px 8px; border-radius: 8px; margin-top: -4px; }
+  .tp-rec { font: 700 11px var(--f-mono); font-style: normal; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); background: var(--accent); padding: 3px 8px; border-radius: 8px; margin-top: -4px; }
   .tp-rec.none { visibility: hidden; }
   .tpick button.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--fg); }
   .tmini { width: 100%; aspect-ratio: 9 / 15; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 0 0 1px var(--line); }
-  .tpick button.on .tmini { box-shadow: 0 0 0 2px #ffd34d; }
+  .tpick button.on .tmini { box-shadow: 0 0 0 2px var(--accent); }
   .tmini.light { background: #f3f1ec; } .tmini.dark { background: #0d0c0a; }
   .tmini i { display: block; border-radius: 6px; }
-  .tm-h { height: 14%; background: #ffd34d; }
+  .tm-h { height: 14%; background: var(--accent); }
   .tmini.light .tm-c { background: #fff; box-shadow: 0 1px 4px rgb(60 45 10 / .12); } .tmini.dark .tm-c { background: #201e1a; }
   .tm-c { flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
   .tm-c b, .tm-c s { display: block; height: 6px; border-radius: 3px; text-decoration: none; }
-  .tm-c b { width: 70%; background: #ffd34d; } .tmini.light .tm-c s { width: 45%; background: #d9d4c8; } .tmini.dark .tm-c s { width: 45%; background: #3a3732; }
+  .tm-c b { width: 70%; background: var(--accent); } .tmini.light .tm-c s { width: 45%; background: #d9d4c8; } .tmini.dark .tm-c s { width: 45%; background: #3a3732; }
   .tm-n { height: 10%; display: flex; align-items: center; justify-content: center; } .tmini.light .tm-n { background: #fff; } .tmini.dark .tm-n { background: #161512; }
-  .tm-n b { width: 22%; height: 40%; border-radius: 4px; background: color-mix(in srgb, #ffd34d 60%, transparent); }
+  .tm-n b { width: 22%; height: 40%; border-radius: 4px; background: color-mix(in srgb, var(--accent) 60%, transparent); }
   .icgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; margin: 12px 0; }
   .icpick { appearance: none; background: none; border: 0; padding: 6px 2px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--fg2); font: 600 12px var(--f-body); }
   .icpick img { width: 60px; height: 60px; border-radius: 16px; box-shadow: 0 0 0 1px var(--line); transition: transform .15s; }
@@ -1096,8 +1120,10 @@
   .hw-past-h::before, .hw-past-h::after { content: ''; flex: 1; height: 1px; background: currentColor; opacity: .3; }
 
   /* rooster: dag als lijst met tijdkolom, week als bord */
-  .card-box.les { display: grid; grid-template-columns: 50px 1fr auto; gap: 12px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--line);
-    border-radius: 0; padding: 12px 4px; }
+  /* elke les een eigen kaartje, net als bij Huiswerk en Cijfers (de achtergrond, rand en schaduw komen van .card-box) */
+  .card-box.les { display: grid; grid-template-columns: 50px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; }
+  .card-box.les + .card-box.les, .gap + .card-box.les, .card-box.les + .gap { margin-top: 8px; }
+  .day-h + .card-box.les { margin-top: 10px; } /* wat ruimte tussen "Vandaag · 5 lessen" en het eerste kaartje */
   .les .uur { text-align: left; }
   .les .uur b { display: block; font: 800 22px/1 var(--f-display); font-variant-numeric: tabular-nums; }
   .les .uur span { font: 500 11px var(--f-mono); color: var(--muted); }
@@ -1108,10 +1134,10 @@
   .les .lok { font: 700 14px var(--f-mono); color: var(--fg); padding: 5px 9px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 14%, var(--surface2)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
   .les .lok.changed { background: var(--accent); color: var(--ink); box-shadow: none; }
   .les .lok small { display: block; font: 600 9.5px var(--f-mono); text-decoration: line-through; opacity: .75; text-align: center; margin-top: 1px; }
-  .les.now { background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 14px; padding: 12px 10px; }
+  .les.now { background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); }
   .les.now .uur b { color: var(--accent-text); }
-  .les.gone { opacity: .45; }
-  .les.vervallen { background: var(--red-bg); border: 1px solid var(--red-line); border-radius: 14px; padding: 12px 10px; }
+  .les.gone { opacity: .72; filter: grayscale(.4); } /* les van vandaag die al geweest is: iets grijzer, maar goed leesbaar */
+  .les.vervallen { background: var(--red-bg); border: 1px solid var(--red-line); }
   .les.vervallen .wat b { color: var(--red-fg); }
   .les.vervallen .wat b .vk-chip { text-decoration: line-through; }
   .les .note { grid-column: 2 / 4; font-size: 12px; color: var(--fg2); margin-top: -6px; }
@@ -1138,7 +1164,7 @@
   .free.small-free b { font-size: 15px; }
   .free.small-free span { font-size: 13px; }
   .wkh .wfree { display: block; font: 700 9px var(--f-mono); font-style: normal; color: var(--accent-text); letter-spacing: .08em; margin-top: 1px; }
-  .les.compact { padding: 9px 4px; grid-template-columns: 40px 1fr auto; }
+  .les.compact { padding: 9px 12px; grid-template-columns: 40px 1fr auto; }
   .gap { text-align: center; color: var(--muted); font: 500 11px var(--f-mono); padding: 6px 0; letter-spacing: .06em; }
   .wk { display: grid; gap: 3px; align-items: stretch; }
   .wkh { text-align: center; font: 600 10px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; padding-bottom: 4px; }
@@ -1204,6 +1230,14 @@
   .swipe-area.grades > .card-box, .card-box.hw { content-visibility: auto; contain-intrinsic-size: auto 130px; }
   .wkc.uit b { text-decoration: line-through; color: var(--red); }
   .wkc.exam { box-shadow: 0 0 0 1px var(--accent) inset; }
+  /* huiswerk voor deze les: klein labeltje HW (afgevinkt = grijs met een vinkje) */
+  .wkc .hwb { position: absolute; bottom: 2px; right: 2px; font: 700 7px/1 var(--f-mono); text-decoration: none; letter-spacing: .02em; padding: 2px 3px; border-radius: 4px; background: var(--accent); color: var(--ink); }
+  .wkc .hwb.done, .tag.hwt.done { background: var(--surface2); color: var(--muted); }
+  /* dagen die al geweest zijn: een heel klein beetje grijzer, het HW-labeltje ook */
+  .wkc.past, .les.pastday { filter: grayscale(.45); opacity: .82; }
+  .hw-in-les { background: var(--surface2); border-radius: 12px; padding: 10px 12px; margin-top: 8px; }
+  .hw-in-les .txt { margin-top: 4px; font-size: 14px; color: var(--fg2, var(--fg)); white-space: pre-line; }
+  .hw-in-les.isdone b, .hw-in-les.isdone .txt { opacity: .5; }
   .wkc.chg::after { content: ''; position: absolute; top: 4px; left: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
   .wkc.now { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
 
@@ -1380,7 +1414,7 @@
     { k: 'meer', label: 'Meer' }
   ];
   sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="C.R.H" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
-    <button class="ibtn" data-a="refresh" aria-label="Vernieuwen">${ICONS.refresh}</button></header><main></main>
+    <p class="hday"></p><button class="ibtn" data-a="refresh" aria-label="Vernieuwen">${ICONS.refresh}</button></header><main></main>
     <nav class="tabs"></nav></div>`;
   const app = sh.querySelector('.app');
   /* gesimuleerde tijd: een labeltje bovenin, zodat je niet vergeet dat het niet de echte tijd is (tik = terug naar echt) */
@@ -1447,8 +1481,8 @@
     app.classList.remove('photo');
   }
   applyLook();
-  const S = { tab: 'rooster', rView: ls.get('cp:rview', 'dag'), dev: [], devSeen: new Set(), devOn: false, grades: ls.get('cp:cache:grades', null), gradesErr: null, loadingGrades: false, ovPeriod: null,
-    hwMonday: defaultMonday(), hw: {}, rMonday: defaultMonday(), rooster: {}, rDay: null, abs: null, packBusy: false, fresh: {} };
+  const S = { tab: 'rooster', rView: ls.get('cp:rview', 'week'), /* eerste keer: de hele week; daarna wat je zelf koos */ dev: [], devSeen: new Set(), devOn: false, grades: ls.get('cp:cache:grades', null), gradesErr: null, loadingGrades: false, ovPeriod: null,
+    hwMonday: defaultMonday(), hw: {}, rMonday: defaultMonday(), rooster: {}, rDay: null, abs: null, packBusy: false, fresh: {}, failT: {} };
 
   /* overal in de app: tik op een docent */
   sh.querySelector('.app').addEventListener('click', e => {
@@ -1584,9 +1618,11 @@
     const first = S.grades && S.grades.student ? S.grades.student.trim().split(/\s+/)[0] : '';
     const h = d.getHours(), groet = h < 6 ? 'Goedenacht' : h < 12 ? 'Goedemorgen' : h < 18 ? 'Goedemiddag' : 'Goedenavond';
     const k = klas();
-    /* klas en datum altijd laten zien: past het niet, dan wordt de groet met je naam ingekort (met …) */
-    sh.querySelector('.hdate').innerHTML = first ? `<span class="hg">${esc(groet + ', ' + first)}</span><span class="hdd">&nbsp;· ${esc((k ? k + ' · ' : '') + DAYS_SHORT[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()].slice(0, 3))}</span>`
-      : `<span class="hg">${esc(DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()])}</span>`;
+    /* links de groet met je naam en klas; de datum staat apart rechts, naast de vernieuwknop, zodat je naam
+       op een smalle telefoon niet meer wordt afgekapt */
+    sh.querySelector('.hdate').innerHTML = `<span class="hg">${esc(first ? groet + ', ' + first : groet)}</span>`;
+    /* rechts: dag en datum, en je klas eronder */
+    sh.querySelector('.hday').innerHTML = `<span><b>${esc(DAYS_SHORT[d.getDay()])}</b> ${d.getDate()} ${esc(MONTH_FULL[d.getMonth()].slice(0, 3))}</span>${k ? `<span>${esc(k)}</span>` : ''}`;
   }
   /* je klas (bijv. H3B): de groep die het vaakst bij je lessen staat (bij vakken als "h3b.ne2" telt het stuk voor de punt) */
   function klas() {
@@ -1772,7 +1808,14 @@
     S.loadingGrades = true;
     spinning(true);
     try {
-      S.grades = await loadGrades(full);
+      try { S.grades = await loadGrades(full); }
+      catch (e) {
+        /* net terug uit de achtergrond is de sessie soms nog even aan het vernieuwen: één keer opnieuw proberen
+           voordat we zeggen dat je bent uitgelogd */
+        if (!e || (e.message !== 'login' && !e.offline)) throw e;
+        await new Promise(r => setTimeout(r, 1500));
+        S.grades = await loadGrades(full);
+      }
       S.gradesErr = null;
       ls.set('cp:cache:grades', S.grades);
       /* weer ingelogd: je geopende cijfers enz. van de vorige keer terugzetten */
@@ -1787,7 +1830,8 @@
     S.loadingGrades = false;
     spinning(false);
     /* de servertijd is nu bekend: klopt de dag van de telefoon niet, dan meteen naar de echte dag */
-    if (S.dayKey && checkDay(true)) return updateNav();
+    /* (op Cijfers tekent checkDay niks opnieuw: dan hieronder gewoon de cijfers tekenen) */
+    if (S.dayKey && checkDay(true) && S.tab !== 'cijfers') return updateNav();
     if ((S.tab === 'cijfers' && !S.packBusy) || S.remChanged) { S.remChanged = false; render(); }
     else updateNav();
   }
@@ -1803,11 +1847,13 @@
     const want = (t, tab) => S.tab === tab || types.includes(t);
     /* het tabblad waar je bent: opnieuw laden met laadscherm; de andere stil op de achtergrond */
     if (want('r', 'rooster')) {
-      if (S.tab === 'rooster') { delete S.rooster[S.rMonday.getTime()]; renderRooster(); }
+      if (S.tab === 'rooster' && S.rooster[S.rMonday.getTime()]) refreshShown('r', S.rMonday.getTime(), S.rMonday);
+      else if (S.tab === 'rooster') renderRooster();
       else refreshWeek('r', S.rMonday.getTime(), S.rMonday);
     }
     if (want('h', 'huiswerk')) {
-      if (S.tab === 'huiswerk') { delete S.hw[S.hwMonday.getTime()]; renderHomework(); }
+      if (S.tab === 'huiswerk' && S.hw[S.hwMonday.getTime()]) refreshShown('hw', S.hwMonday.getTime(), S.hwMonday);
+      else if (S.tab === 'huiswerk') renderHomework();
       else refreshWeek('hw', S.hwMonday.getTime(), S.hwMonday);
     }
     if (want('c', 'cijfers')) refreshGrades(true); /* vernieuwen = alle perioden opnieuw */
@@ -2036,19 +2082,24 @@
 
 
   async function openQueue(list) {
+    /* een cijfer dat net is veranderd of weg is (bijv. na vernieuwen) overslaan, anders blijft Cijfers vastzitten */
+    list = (list || []).filter(Boolean);
     S.packBusy = true;
     let skipped = false;
-    for (let i = 0; i < list.length && !skipped; i++) {
-      const g = list[i];
-      await unbox(g, {
-        label: list.length > 1 ? `Cijfer ${i + 1} van ${list.length}` : '',
-        onReveal: () => markSeen(g),
-        onSkip: list.length > 1 ? () => { skipped = true; list.forEach(markSeen); } : null
-      });
-      markSeen(g);
-      updateNav();
+    try {
+      for (let i = 0; i < list.length && !skipped; i++) {
+        const g = list[i];
+        await unbox(g, {
+          label: list.length > 1 ? `Cijfer ${i + 1} van ${list.length}` : '',
+          onReveal: () => markSeen(g),
+          onSkip: list.length > 1 ? () => { skipped = true; list.forEach(markSeen); } : null
+        });
+        markSeen(g);
+        updateNav();
+      }
+    } finally {
+      S.packBusy = false;
     }
-    S.packBusy = false;
     if (S.tab === 'cijfers') renderGrades();
   }
 
@@ -2235,7 +2286,9 @@
       const c = ls.get('cp:wk:' + name, {}) || {};
       c[key] = v;
       const out = {};
-      Object.keys(c).map(Number).sort((a, b) => b - a).slice(0, 3).forEach(k => { out[k] = c[k]; });
+      /* de 3 weken die het dichtst bij deze week liggen bewaren (niet de 3 verste in de toekomst) */
+      const cur = mondayOf(now()).getTime();
+      Object.keys(c).map(Number).sort((a, b) => Math.abs(a - cur) - Math.abs(b - cur)).slice(0, 3).forEach(k => { out[k] = c[k]; });
       ls.set('cp:wk:' + name, out);
     }
   };
@@ -2250,7 +2303,31 @@
       if (isR) pushWidget();
       const onIt = S.tab === tab && (isR ? S.rMonday : S.hwMonday).getTime() === key;
       if (!same && onIt && !sh.querySelector('.modal, .panel, .ov')) (isR ? renderRooster : renderHomework)();
-    } catch (e) { S.fresh[name + key] = 0; }
+      /* huiswerk binnen terwijl je naar het rooster van die week kijkt: HW-labeltjes bijwerken */
+      else if (!isR && !same && S.tab === 'rooster' && S.rMonday.getTime() === key && !sh.querySelector('.modal, .panel, .ov')) renderRooster();
+      return null;
+    } catch (e) {
+      /* mislukt: wat er stond blijft staan; pas na 5 minuten vanzelf opnieuw proberen (niet elke minuut) */
+      S.fresh[name + key] = 0;
+      S.failT[name + key] = Date.now();
+      return e;
+    }
+  }
+  const recentlyFailed = (name, key) => Date.now() - (S.failT[name + key] || 0) < 5 * 60000;
+  /* mag huiswerk nu opgehaald worden? Op 4G/5G niet als dat bij Meer → Datagebruik op nooit staat */
+  function hwAllowed() {
+    try { if (Native && Native.onMobile && Native.onMobile()) return (JSON.parse(Native.getSettings()).n_mob_h_mode || DATA_DEF.h) !== 'off'; } catch (e) {}
+    return true;
+  }
+  /* zelf vernieuwen van het tabblad waar je bent: de oude gegevens blijven staan tot de nieuwe binnen zijn;
+     lukt het niet, dan een melding (uitgelogd: het inlogscherm) */
+  async function refreshShown(name, key, mon) {
+    spinning(true);
+    const err = await refreshWeek(name, key, mon);
+    spinning(false);
+    if (!err) return;
+    if (err.message === 'login') loginScreen();
+    else toast(err.offline ? 'Geen verbinding. Je ziet de laatst opgehaalde gegevens.' : String(err.message || err));
   }
   async function renderHomework() {
     setHeader('Huiswerk');
@@ -2261,7 +2338,7 @@
     if (!cached) {
       shell(skeleton('hw'));
       spinning(true);
-      try { S.hw[key] = await loadHomework(mon); S.fresh['hw' + key] = 1; weekCache.set('hw', key, S.hw[key]); }
+      try { S.hw[key] = await loadHomework(mon); S.fresh['hw' + key] = 1; weekCache.set('hw', key, S.hw[key]); retryGrades(); /* het portaal werkt dus: je bent niet uitgelogd */ }
       catch (e) { spinning(false); if (S.tab !== 'huiswerk' || S.hwMonday.getTime() !== key) return; return e.message === 'login' ? loginScreen() : shell(errBox(e)); }
       spinning(false);
       if (S.tab !== 'huiswerk' || S.hwMonday.getTime() !== key) return;
@@ -2387,6 +2464,13 @@
     return `<div class="count">Nog <b>${n} dagen</b> tot de ${esc(name.toLowerCase())}</div>`;
   }
   /* "Nu en straks": de les van nu met de minuten die nog over zijn, en de volgende les (alleen vandaag) */
+  /* welke lessen van vandaag nog moeten komen (0), bezig zijn (1) of geweest zijn (2): verandert alleen bij begin/einde van een les */
+  function lessonSig() {
+    const n = now(), m = n.getHours() * 60 + n.getMinutes();
+    const day = Object.values(S.rooster).flat().find(d => d && sameDay(new Date(d.date), n));
+    if (!day) return '';
+    return day.lessons.map(l => { const [a, b] = (l.tijd || '').split('-').map(toMin); return a == null || b == null ? '-' : m < a ? 0 : m < b ? 1 : 2; }).join('');
+  }
   function nowCardHtml() {
     const n = now(), t0 = dayStart(n).getTime();
     /* vandaag en de komende dagen uit alle geladen weken (ook als je naar een andere week kijkt) */
@@ -2534,6 +2618,34 @@
       S.rDay = t ? t.date : S.rDay && S.rDay > days[days.length - 1].date ? days[days.length - 1].date : days[0].date;
     }
     const nowMin = now().getHours() * 60 + now().getMinutes();
+    /* huiswerk van deze week (ook je eigen huiswerk): bij de les op de dag dat het af moet een labeltje HW.
+       Nog niet geladen: stil ophalen, daarna wordt het rooster opnieuw getekend */
+    const hwWeek = S.hw[key] || weekCache.get('hw', key);
+    if (!S.hw[key] && !S.fresh['hw' + key] && !recentlyFailed('hw', key) && hwAllowed()) refreshWeek('hw', key, mon);
+    const hwItems = (hwWeek || []).concat(ownHwWeek(mon));
+    const hwFor = (d, l) => {
+      const same = hwItems.filter(it => it.date && sameDay(new Date(it.date), new Date(d.date)) && String(it.vak || '').toLowerCase() === String(l.vak || '').toLowerCase());
+      if (!same.length) return null;
+      /* staat er een lesuur bij het huiswerk, dan bij dat uur; anders (of als dat uur er niet is) bij de eerste les van dat vak */
+      const first = d.lessons.find(x => String(x.vak || '').toLowerCase() === String(l.vak || '').toLowerCase());
+      const mine = same.filter(it => {
+        const exact = it.uur && d.lessons.some(x => String(x.uur) === String(it.uur) && String(x.vak || '').toLowerCase() === String(l.vak || '').toLowerCase());
+        return exact ? String(it.uur) === String(l.uur) : first === l;
+      });
+      if (!mine.length) return null;
+      return { done: mine.every(it => it.gemaakt || done[it.id]), items: mine };
+    };
+    const hwTag = (d, l) => { const h = hwFor(d, l); return h ? `<span class="tag hwt${h.done ? ' done' : ''}">${h.done ? '✓ ' : ''}HW</span>` : ''; };
+    const hwBadge = (d, l) => { const h = hwFor(d, l); return h ? `<u class="hwb${h.done ? ' done' : ''}">HW</u>` : ''; };
+    /* in het venster van een les: het huiswerk voor die les, met een knop naar Huiswerk */
+    const hwSheetHtml = (d, l) => {
+      const h = hwFor(d, l);
+      if (!h) return '';
+      return `<div class="setting-h" style="margin-top:14px">Huiswerk</div>` + h.items.map(it => {
+        const ok = it.gemaakt || done[it.id];
+        return `<div class="hw-in-les${ok ? ' isdone' : ''}"><div class="t">${it.toets ? '<span class="tag">TOETS</span> ' : ''}${it.own ? '<span class="tag dim">EIGEN</span> ' : ''}<b>${esc(it.onderwerp || 'Huiswerk')}</b>${ok ? ' <span class="tag dim">✓ GEMAAKT</span>' : ''}</div>${it.huiswerk ? `<div class="txt">${esc(it.huiswerk)}</div>` : ''}</div>`;
+      }).join('') + '<button class="linkbtn" data-a="tohw" style="border-bottom:0">Naar Huiswerk ›</button>';
+    };
     const lessonsHtml = (d, compact) => {
       const isToday = sameDay(new Date(d.date), today);
       if (!d.lessons.length) {
@@ -2550,9 +2662,9 @@
         const gone = isToday && b != null && nowMin >= b;
         const uitval = l.uitval || /vervall|cancel|uitval/i.test(l.status || '');
         const note = [l.wijziging, l.opmerking].filter(Boolean).join(' · ');
-        out += `<div class="card-box les${compact ? ' compact' : ''}${now && !uitval ? ' now' : ''}${gone ? ' gone' : ''}${uitval ? ' vervallen' : ''}"${isToday && a != null && b != null ? ` data-a="${a}" data-b="${b}"` : ''}>
+        out += `<div class="card-box les${compact ? ' compact' : ''}${now && !uitval ? ' now' : ''}${gone ? ' gone' : ''}${d.date < today.getTime() ? ' pastday' : ''}${uitval ? ' vervallen' : ''}"${isToday && a != null && b != null ? ` data-a="${a}" data-b="${b}"` : ''}>
           <div class="uur"><b>${esc(l.uur || '–')}</b><span>${esc((l.tijd || '').split('-')[0].trim())}</span></div>
-          <div class="wat"><b>${emoji(l.vak)} ${esc(vakName(l.vak))} ${uitval ? '<span class="tag red">UITVAL</span>' : l.type === 'exam' ? '<span class="tag">TOETS</span>' : l.tijdAnders || l.nieuw ? '<span class="tag">GEWIJZIGD</span>' : ''}</b><span>${esc(l.tijd)}${l.docent ? ' · ' + docBtn(l.docent) : ''}</span></div>
+          <div class="wat"><b>${emoji(l.vak)} ${esc(vakName(l.vak))} ${uitval ? '<span class="tag red">UITVAL</span>' : l.type === 'exam' ? '<span class="tag">TOETS</span>' : l.tijdAnders || l.nieuw ? '<span class="tag">GEWIJZIGD</span>' : ''} ${hwTag(d, l)}</b><span>${esc(l.tijd)}${l.docent ? ' · ' + docBtn(l.docent) : ''}</span></div>
           <div class="lok${l.lokaalAnders ? ' changed' : ''}">${esc(l.lokaal || '–')}${l.wasLokaal ? `<small>was ${esc(l.wasLokaal)}</small>` : ''}</div>
           ${note ? `<div class="note">${esc(note)}</div>` : ''}</div>`;
       });
@@ -2624,8 +2736,8 @@
           /* verkorte les: het vakje is naar verhouding lager (bijv. 35 van de 50 minuten), en de begintijd staat erbij */
           const abN = uurAB(u), kort = a != null && b != null && abN && shortDay(d) && b - a < abN[1] - abN[0];
           const kortH = kort ? Math.max(30, Math.round(48 * (b - a) / (abN[1] - abN[0]))) : 0;
-          html += `<button class="wkc${uit ? ' uit' : ''}${l.type === 'exam' ? ' exam' : ''}${now && !uit ? ' now' : ''}${l.lokaalAnders || l.tijdAnders || l.wijziging ? ' chg' : ''}" data-les="${di}:${d.lessons.indexOf(l)}"${kort ? ` style="min-height:${kortH}px;height:${kortH}px;align-self:start" data-kort data-ka="${a}" data-kb="${b}"` : ''}${isToday && a != null && b != null ? ` data-today data-a="${a}" data-b="${b}"` : ''}>
-            <b>${esc(l.vak.toUpperCase().slice(0, 5))}</b><span>${esc((l.lokaal || '').split(',')[0])}</span>${kort ? `<em class="wkt">${hm(a)}–${hm(b)}</em>` : ''}${ls2.length > 1 ? '<i>+' + (ls2.length - 1) + '</i>' : ''}</button>`;
+          html += `<button class="wkc${d.date < today.getTime() ? ' past' : ''}${uit ? ' uit' : ''}${l.type === 'exam' ? ' exam' : ''}${now && !uit ? ' now' : ''}${l.lokaalAnders || l.tijdAnders || l.wijziging ? ' chg' : ''}" data-les="${di}:${d.lessons.indexOf(l)}"${kort ? ` style="min-height:${kortH}px;height:${kortH}px;align-self:start" data-kort data-ka="${a}" data-kb="${b}"` : ''}${isToday && a != null && b != null ? ` data-today data-a="${a}" data-b="${b}"` : ''}>
+            <b>${esc(l.vak.toUpperCase().slice(0, 5))}</b><span>${esc((l.lokaal || '').split(',')[0])}</span>${kort ? `<em class="wkt">${hm(a)}–${hm(b)}</em>` : ''}${ls2.length > 1 ? '<i>+' + (ls2.length - 1) + '</i>' : ''}${hwBadge(d, l)}</button>`;
         });
       });
       /* reminders: onder elke dag een eigen vakje, met wat ruimte tussen de lessen en de reminders */
@@ -2657,6 +2769,7 @@
       <div class="row" style="margin-top:10px;justify-content:flex-start"><button class="btn" data-a="zm">Zermelo koppelen</button></div></div>`;
     else html += `<p class="small muted" style="text-align:center;margin-top:6px"><span class="zm-mark">Rooster uit <img src="${ASSET('zermelo.svg')}" alt="Zermelo"></span></p>`;
     shell(html, true);
+    S.lesSig = lessonSig();
     placeShort();
     placeNowLine();
     main.querySelectorAll('[data-lestijden]').forEach(b => { b.onclick = e => { e.stopPropagation(); lestijdenSheet(); }; });
@@ -2673,8 +2786,12 @@
           <div class="listrow"><span class="muted">Lokaal</span><b>${esc(l.lokaal || '–')}${l.wasLokaal ? ` <span class="muted" style="font-weight:500">(was ${esc(l.wasLokaal)})</span>` : ''}</b></div>
           ${l.docent ? `<div class="listrow"><span class="muted">Docent</span><b>${docBtn(l.docent, true)}</b></div>` : ''}
           ${l.wijziging || l.opmerking ? `<div class="listrow"><span class="muted">Wijziging</span><b>${esc([l.wijziging, l.opmerking].filter(Boolean).join(' · '))}</b></div>` : ''}
+          ${hwSheetHtml(d, l)}
           <button class="btn ghost" data-a="close">Sluiten</button></div>`;
-        m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
+        m.addEventListener('click', e => {
+          if (e.target.closest('[data-a=tohw]')) { m.remove(); S.hwMonday = mon; go('huiswerk'); return; }
+          if (e.target === m || e.target.closest('[data-a=close]')) m.remove();
+        });
         app.appendChild(m);
       };
     });
@@ -2814,10 +2931,13 @@
   }
   /* de widget in drie maten: keuze + voorbeeld; pinWidget(kind) zet hem neer (true = gelukt) */
   const WIDGET_SIZES = [['wide3', '3x1', ''], ['square', '2x2', 'sq'], ['wide4', '4x1', 'wd']];
-  /* de 4x1 heeft twee regels: het uur staat bovenaan en de les daarna eronder (zoals NextLessonWidget) */
+  /* zoals NextLessonWidget: overal staat wat en waar je daarna hebt. De 3x1 en 4x1 (één rij hoog) hebben het uur bovenaan
+     en de les daarna op de tweede regel; de 2x2 heeft de tijden en daaronder een eigen regel voor de les daarna */
   const widgetPreview = cls => cls === 'wd'
     ? `<div class="wprev ${cls}"><div><b>EN</b><span>b112</span></div><p><small>STRAKS · 4E UUR · 10:40</small><em>Daarna 5e uur · WI · a138</em></p></div>`
-    : `<div class="wprev ${cls}"><small>STRAKS · 10:40</small><div><b>EN</b><span>b112</span></div><em>4e uur · 10:40–11:25</em></div>`;
+    : cls === 'sq'
+      ? `<div class="wprev ${cls}"><small>STRAKS · 10:40</small><div><b>EN</b><span>b112</span></div><em>4e uur · 10:40–11:25</em><em class="nx">Daarna 5e uur · WI · a138</em></div>`
+      : `<div class="wprev ${cls}"><small>STRAKS · 4E UUR · 10:40</small><div><b>EN</b><span>b112</span></div><em>Daarna 5e uur · WI · a138</em></div>`;
   function widgetSizePicker(box, onKind) {
     let kind = 'wide3';
     const draw = () => {
@@ -2997,16 +3117,23 @@
     const mini = mode => `<span class="tmini ${mode}"><i class="tm-h"></i><i class="tm-c"><b></b><s></s></i><i class="tm-c"><b></b><s></s></i><i class="tm-n"><b></b></i></span>`;
     const draw = () => {
       const cur = theme;
-      m.innerHTML = `<div class="sheet"><h3>Kies je thema</h3><p class="small muted">Je kunt dit later altijd aanpassen bij <b>Meer → Thema</b>, ook met een andere accentkleur.</p>
-        <div class="tpick">${[['light', 'Wit met geel', true], ['dark', 'Zwart met geel', false]].map(([k, l, rec]) => `<button class="${cur === k ? 'on' : ''}" data-tp="${k}">${mini(k)}<span>${l}</span>${rec ? '<em class="tp-rec">Aanbevolen</em>' : '<em class="tp-rec none"></em>'}</button>`).join('')}</div>
-        <button class="btn" data-a="ok">Verder</button></div>`;
+      m.innerHTML = `<div class="sheet"><h3>Kies je thema</h3><p class="small muted">Kies wit of zwart en je accentkleur. Je kunt dit later altijd aanpassen bij <b>Meer → Thema</b>.</p>
+        <div class="tpick">${[['light', 'Wit'], ['dark', 'Zwart']].map(([k, l]) => `<button class="${cur === k ? 'on' : ''}" data-tp="${k}">${mini(k)}<span>${l}</span></button>`).join('')}</div>
+        <div class="lbl" style="margin:14px 0 10px">Accentkleur</div>
+        <div class="swatches">${SWATCHES.map(c => `<button class="sw${c === accent ? ' on' : ''}" style="--c:${c}" data-c="${c}" aria-label="Kleur ${c}"></button>`).join('')}
+          <label class="sw custom${SWATCHES.indexOf(accent) < 0 ? ' on' : ''}" aria-label="Eigen kleur"><input type="color" id="first-accent" value="${accent}"></label></div>
+        <button class="btn" data-a="ok" style="margin-top:16px">Verder</button></div>`;
       m.querySelectorAll('[data-tp]').forEach(b => {
         b.onclick = () => {
-          theme = b.dataset.tp; accent = '#ffd34d';
-          ls.set('cp:theme', theme); ls.set('cp:accent', accent);
+          theme = b.dataset.tp;
+          ls.set('cp:theme', theme);
           applyLook(); buzz(10); draw();
         };
       });
+      const setAccent = c => { accent = applyAccent(c); ls.set('cp:accent', accent); buzz(10); draw(); };
+      m.querySelectorAll('[data-c]').forEach(b => { b.onclick = () => setAccent(b.dataset.c); });
+      const ci = m.querySelector('#first-accent');
+      if (ci) { ci.oninput = () => { accent = applyAccent(ci.value); }; ci.onchange = () => setAccent(ci.value); }
       m.querySelector('[data-a=ok]').onclick = () => {
         ls.set('cp:themePicked', 1); m.remove();
         if (!ls.get('cp:iconPicked', 0)) iconPicker(); else askInstall();
@@ -3666,18 +3793,31 @@
       <label class="lbl" style="display:block;margin-top:14px">Nieuwe gebruiker</label>
       ${ls.get('cp:simBackup', null) ? `<div class="small" style="margin-top:6px;color:var(--accent-text);font-weight:700">Simulatie actief</div>
         <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="simstop">Stoppen en alles terugzetten</button></div>`
-        : `<div class="small muted" style="margin-top:6px">Doorloop de app alsof je hem net hebt gekregen: voorwaarden, icoon kiezen, Zermelo koppelen, welkom en alle cijfers openen. Je blijft ingelogd; daarna kun je alles terugzetten.</div>
-        <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="simnew">Simuleer nieuwe gebruiker</button></div>`}
+        : `<div class="small muted" style="margin-top:6px">Doorloop de app alsof je hem net hebt gekregen: voorwaarden, thema kiezen, icoon, Zermelo koppelen, welkom en alle cijfers openen. Daarna kun je alles terugzetten.</div>
+        <div class="row" style="margin-top:8px;justify-content:flex-start;flex-wrap:wrap"><button class="btn" data-a="simnew">Ingelogd blijven</button><button class="btn ghost" data-a="simnewlogin">Opnieuw inloggen</button></div>
+        <div class="small muted" style="margin-top:6px"><b>Opnieuw inloggen</b> logt je ook uit bij school en Zermelo, zodat je het inloggen ook doorloopt. Je cijfers, rooster en Zermelo-koppeling komen terug zodra je weer inlogt en koppelt.</div>`}
       <button class="linkbtn" data-a="devoff" style="border-bottom:0">Ontwikkelaar sluiten</button></div>`;
   }
   /* "nieuwe gebruiker": de eerste-keer-instellingen tijdelijk wissen (met een reservekopie) en de app opnieuw starten */
   const SIM_KEYS = ['cp:terms', 'cp:termsDate', 'cp:iconPicked', 'cp:themePicked', 'cp:zmAsked', 'cijferpacks:v1', 'cp:hwdone', 'cp:tabs', 'cp:tips', 'cp:tourDone', 'cp:installAsked', 'cp:batteryAsked', 'cp:refreshAsked', 'cp:firstUpd', 'cp:widgetAsked'];
-  function simNewUser() {
+  /* uitloggen: een andere leerling heeft ander rooster en andere cijfers: alles van deze leerling weg, ook Zermelo.
+     Thema, icoon en geluid blijven staan (die horen bij de telefoon) */
+  function logoutAll() {
+    zermeloUnlink();
+    stashAccount();
+    ['cp:cache:grades', 'cijferpacks:v1', 'cp:hwdone', 'cp:hwrules', 'cp:hwseen', 'cp:docenten', 'cp:roosterKey', 'cp:zmurl2', 'cp:calcTarget', 'cp:zmAsked', 'cp:abs', 'cp:wk:r', 'cp:wk:hw', 'cp:absSeen', 'cp:absHidden', 'cp:tourDone', 'cp:klas', 'cp:ownHw', 'cp:hwNew', 'cp:lokSeen']
+      .forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+    ls.set('cp:cache:grades', null);
+    if (Native) Native.logout(); else location.href = '/?logout=true';
+  }
+  /* relogin = ook uitloggen bij school en Zermelo, zodat je ook het inloggen doorloopt (zoals een echte nieuwe gebruiker);
+     anders blijf je ingelogd en zie je alleen de eerste-keer-schermen */
+  function simNewUser(relogin) {
     const backup = {};
     SIM_KEYS.forEach(k => { try { backup[k] = localStorage.getItem(k); localStorage.removeItem(k); } catch (e) {} });
     ls.set('cp:simBackup', backup);
     ls.set('cp:simNew', 1);
-    location.reload();
+    if (relogin === true) logoutAll(); else location.reload();
   }
   function simStop() {
     const backup = ls.get('cp:simBackup', {}) || {};
@@ -3756,7 +3896,9 @@
     const dc = main.querySelector('[data-a=devcrash]');
     if (dc) dc.onclick = () => { if (Native && Native.devCrash) { Native.devCrash(); if (IOS) toast('Testfoutmelding verstuurd naar de developer'); } else toast('Testcrash (alleen in de app)'); };
     const sn = main.querySelector('[data-a=simnew]');
-    if (sn) sn.onclick = simNewUser;
+    if (sn) sn.onclick = () => simNewUser(false);
+    const snl = main.querySelector('[data-a=simnewlogin]');
+    if (snl) snl.onclick = () => simNewUser(true);
     const cn = main.querySelector('[data-a=canary]');
     cn.onchange = () => { ls.set('cp:canary', cn.checked); ls.set('cp:updFound', null); ls.set('cp:updCheck', 0); toast(cn.checked ? 'Canary-updates aan' : 'Canary-updates uit'); redraw(); };
     main.querySelector('[data-a=canarynow]').onclick = () => {
@@ -3966,16 +4108,7 @@
         go('cijfers');
       };
       main.querySelector('[data-a=portal]').onclick = () => { if (Native) Native.open(location.origin + P_CIJFERS); };
-      main.querySelector('[data-a=logout]').onclick = () => {
-        /* een andere leerling heeft ander rooster en andere cijfers: alles van deze leerling weg, ook Zermelo.
-           Thema, icoon en geluid blijven staan (die horen bij de telefoon) */
-        zermeloUnlink();
-        stashAccount();
-        ['cp:cache:grades', 'cijferpacks:v1', 'cp:hwdone', 'cp:hwrules', 'cp:hwseen', 'cp:docenten', 'cp:roosterKey', 'cp:zmurl2', 'cp:calcTarget', 'cp:zmAsked', 'cp:abs', 'cp:wk:r', 'cp:wk:hw', 'cp:absSeen', 'cp:absHidden', 'cp:tourDone', 'cp:klas', 'cp:ownHw']
-          .forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
-        ls.set('cp:cache:grades', null);
-        if (Native) Native.logout(); else location.href = '/?logout=true';
-      };
+      main.querySelector('[data-a=logout]').onclick = logoutAll;
     };
     draw();
     if (!S.abs) {
@@ -4149,14 +4282,31 @@
     if (rerender && (S.tab === 'rooster' || S.tab === 'huiswerk') && !sh.querySelector('.modal, .ov')) render();
     return true;
   }
+  /* stond er een fout bij je cijfers (uitgelogd of geen verbinding)? Bij terugkomen in de app of als het internet
+     terug is meteen opnieuw proberen, zodat de melding niet blijft staan tot je de app opnieuw opent */
+  function retryGrades() { if (S.gradesErr && !S.loadingGrades && !document.hidden) refreshGrades(false); }
+  window.addEventListener('online', retryGrades);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
-    if (!checkDay(true) && S.tab === 'rooster') { delete S.rooster[S.rMonday.getTime()]; if (!sh.querySelector('.modal, .ov')) renderRooster(); }
+    retryGrades();
+    /* terug in de app: het rooster dat er stond meteen bijwerken (les van nu) en stil op de achtergrond verversen;
+       zonder internet blijft je rooster gewoon staan */
+    if (!checkDay(true) && S.tab === 'rooster') {
+      const key = S.rMonday.getTime();
+      if (S.rooster[key] && !sh.querySelector('.modal, .ov')) renderRooster();
+      refreshWeek('r', key, S.rMonday);
+    }
   });
   setInterval(() => {
     if (document.hidden || checkDay(true)) return; /* niet in beeld: niks doen (batterij) */
-    /* elke minuut de les van nu bijwerken */
-    if (S.tab === 'rooster' && S.rooster[S.rMonday.getTime()] && !sh.querySelector('.modal, .ov')) renderRooster();
+    /* elke minuut de les van nu bijwerken. Batterij: alleen het kaartje "Nu en straks" en het nu-streepje vervangen;
+       het hele rooster pas opnieuw tekenen als er een les begint of afloopt (dan veranderen de vakjes zelf) */
+    if (S.tab !== 'rooster' || !S.rooster[S.rMonday.getTime()] || sh.querySelector('.modal, .ov')) return;
+    const sig = lessonSig();
+    const nc = main.querySelector('.nowcard');
+    if (sig !== S.lesSig || !nc) { S.lesSig = sig; renderRooster(); return; }
+    nc.outerHTML = nowCardHtml();
+    placeNowLine();
   }, 60000);
 
   window.__cpApp = { refresh: () => refreshGrades(true), go: t => { if (t === 'packs' || TABS.some(x => x.k === t)) go(t); }, today: () => { goToday(); render(); },

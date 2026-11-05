@@ -61,7 +61,26 @@ enum Checker {
 
     /* types: r = rooster, c = cijfers, h = huiswerk. Gooit een fout als er geen verbinding was.
        agenda: ook de jaaragenda verversen (niet op de achtergrond: daar is de tijd krap) */
+    /* nooit twee controles tegelijk (achtergrond en de app zelf): anders dubbele meldingen en dubbel dataverbruik */
+    private static let runLock = NSLock()
+    private static var running = false
+
+    /* (gewone functies, niet async: een slot mag niet over een await heen) */
+    private static func claimRun() -> Bool {
+        runLock.lock(); defer { runLock.unlock() }
+        if running { return false }
+        running = true
+        return true
+    }
+    private static func releaseRun() { runLock.lock(); running = false; runLock.unlock() }
+
     static func runAll(notify: Bool, types: String = "rch", agenda: Bool = true) async throws {
+        guard claimRun() else { return }
+        defer { releaseRun() }
+        try await runAllInner(notify: notify, types: types, agenda: agenda)
+    }
+
+    private static func runAllInner(notify: Bool, types: String, agenda: Bool) async throws {
         let p = await Portal.open()
         var first: Error?
         do {
@@ -301,7 +320,18 @@ enum Checker {
             info[k] = [fmt(d), uur.isEmpty ? hhmm(d) : uur + "e uur", vak]
             widget.append(["s": start * 1000, "e": ((a["end"] as? NSNumber)?.doubleValue ?? start) * 1000, "vak": vak, "lok": lok, "uit": cancelled, "uur": uur])
         }
-        WidgetData.saveLessons(widget, accent: nil)
+        /* de widget kent meer weken (van de app); hier zijn maar 3 dagen opgehaald. Alleen die dagen vervangen en de rest
+           laten staan, anders stond er vrijdagavond tot maandag "Geen lessen meer" (zoals op Android) */
+        let fromMs = Double(from) * 1000, untilMs = Double(until) * 1000, oldMs = (Date().timeIntervalSince1970 - 86400) * 1000
+        var merged: [[String: Any]] = []
+        if let d = Prefs.string("w_lessons").data(using: .utf8), let prevLessons = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] {
+            for o in prevLessons {
+                let s = (o["s"] as? NSNumber)?.doubleValue ?? 0, e = (o["e"] as? NSNumber)?.doubleValue ?? 0
+                if (s < fromMs || s >= untilMs) && e > oldMs { merged.append(o) }
+            }
+        }
+        merged += widget
+        if !merged.isEmpty { WidgetData.saveLessons(merged, accent: nil) }
         let prev = Prefs.d.dictionary(forKey: "zm_snap") as? [String: String]
         Prefs.set("zm_snap", snap)
         guard let pv = prev, notify else { return }
@@ -340,8 +370,10 @@ enum Checker {
             let host = target.host?.lowercased() ?? ""
             if host.hasSuffix(".zportal.nl"), let code = comps?.queryItems?.first(where: { $0.name == "code" })?.value, !code.isEmpty {
                 let tenant = comps?.queryItems?.first(where: { $0.name == "tenant" })?.value ?? ""
-                let school = tenant.isEmpty ? String(host.prefix(while: { $0 != "." })) : tenant
-                guard let token = await tokenFromCode(school: school, code: code) else { return false }
+                /* alleen letters, cijfers en streepjes: een rare waarde in het adres mag de app niet laten crashen */
+                let school = String((tenant.isEmpty ? String(host.prefix(while: { $0 != "." })) : tenant).lowercased()
+                    .filter { ($0 >= "a" && $0 <= "z") || ($0 >= "0" && $0 <= "9") || $0 == "-" })
+                guard !school.isEmpty, let token = await tokenFromCode(school: school, code: code) else { return false }
                 Prefs.set("zm_school", school); Prefs.set("zm_token", token); Prefs.set("zm_sso", true)
                 return true
             }
@@ -354,15 +386,17 @@ enum Checker {
     /* na inloggen geeft Zermelo een code: omwisselen via oauth/token, of de code is zelf al een sleutel */
     static func tokenFromCode(school: String, code: String) async -> String? {
         let base = "https://\(school).zportal.nl/api/v3"
-        var req = URLRequest(url: URL(string: base + "/oauth/token")!)
+        guard let tokenURL = URL(string: base + "/oauth/token") else { return nil }
+        var req = URLRequest(url: tokenURL)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         req.httpBody = "grant_type=authorization_code&code=\(code.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? code)".data(using: .utf8)
         if let (d, r) = try? await URLSession.shared.data(for: req), (r as? HTTPURLResponse)?.statusCode == 200,
            let t = ((try? JSONSerialization.jsonObject(with: d)) as? [String: Any])?["access_token"] as? String, !t.isEmpty { return t }
-        var c = URLComponents(string: base + "/users/~me")!
+        guard var c = URLComponents(string: base + "/users/~me") else { return nil }
         c.queryItems = [.init(name: "access_token", value: code)]
-        if let (_, r) = try? await URLSession.shared.data(from: c.url!), (r as? HTTPURLResponse)?.statusCode == 200 { return code }
+        guard let meURL = c.url else { return nil }
+        if let (_, r) = try? await URLSession.shared.data(from: meURL), (r as? HTTPURLResponse)?.statusCode == 200 { return code }
         return nil
     }
 
