@@ -600,7 +600,7 @@
           const ls2 = d.lessons.filter(l => l.vak);
           return `<div class="day-h">${esc(niceDay(new Date(d.date)))}</div>` + (ls2.length ? ls2.map(l => `<div class="card-box les${l.uitval ? ' vervallen' : ''}">
             <div class="uur"><b>${esc(l.uur || '–')}</b><span>${esc((l.tijd || '').split('-')[0].trim())}</span></div>
-            <div class="wat"><b>${esc(vakName(l.vak))} ${l.uitval ? '<span class="tag red">UITVAL</span>' : ''}</b><span>${esc(l.tijd)}${l.docent ? ' · ' + esc(l.docent) : ''}</span></div>
+            <div class="wat"><b>${esc(vakName(l.vak))} ${l.uitval ? '<span class="tag red">UITVAL</span>' : ''}</b><span>${esc(lesTijd(l.tijd))}${l.docent ? ' · ' + esc(l.docent) : ''}</span></div>
             <div class="lok">${esc(l.lokaal || '–')}</div></div>`).join('') : `<div class="free small-free"><b>Vrij</b></div>`);
         }).join('');
         body.innerHTML = html || emptyHtml('rooster', 'Geen lessen deze week', '');
@@ -986,7 +986,7 @@
   .app.light nav.tabs { border-top-color: transparent; box-shadow: 0 -6px 20px rgb(60 45 10 / .07); }
   .app.light .modal { background: rgb(40 32 15 / .35); }
   .app.light .nowline, .app.light .nowline::before { background: var(--accent-text); box-shadow: none; }
-  .app.light .todaycol { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .app.light .todaycol { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .app.light .calc-entry { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
   .app.light .card-box.hw + .card-box.hw { margin-top: 8px; } /* met schaduwen hebben losse kaarten wat lucht nodig */
   .app.light .check { border-color: #d9d4c8; }
@@ -1247,7 +1247,8 @@
   .todaycol { position: absolute; z-index: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
   .wk > :not(.todaycol):not(.nowline) { position: relative; z-index: 1; }
   /* zwart thema: vandaag duidelijker dan de vakjes zelf (anders bijna dezelfde kleur) */
-  .app:not(.light) .todaycol { background: color-mix(in srgb, var(--accent) 17%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent); }
+  /* kolom van vandaag: zacht, zodat hij niet schreeuwt (vooral bij felle kleuren zoals cyaan op zwart) */
+  .app:not(.light) .todaycol { background: color-mix(in srgb, var(--accent) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent); }
   .app:not(.light) .wkc[data-today]:not(.uit):not(.now) { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
   .nowline { position: absolute; left: 0; right: 0; height: 2px; margin-top: -1px; background: var(--accent); z-index: 3; pointer-events: none; border-radius: 1px; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent); }
   .nowline::before { content: ''; position: absolute; left: var(--dot, 0px); top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); }
@@ -2529,7 +2530,7 @@
     const n = now(), m = n.getHours() * 60 + n.getMinutes();
     const day = Object.values(S.rooster).flat().find(d => d && sameDay(new Date(d.date), n));
     if (!day) return '';
-    return day.lessons.map(l => { const [a, b] = (l.tijd || '').split('-').map(toMin); return a == null || b == null ? '-' : m < a ? 0 : m < b ? 1 : 2; }).join('');
+    return day.lessons.map(l => { const [a, b0] = (l.tijd || '').split('-').map(toMin), b = lesEnd(a, b0); return a == null || b == null ? '-' : m < a ? 0 : m < b ? 1 : 2; }).join('');
   }
   function nowCardHtml() {
     const n = now(), t0 = dayStart(n).getTime();
@@ -2538,7 +2539,7 @@
     const today = allDays.find(d => sameDay(new Date(d.date), n));
     const mins = n.getHours() * 60 + n.getMinutes();
     const hm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
-    const timed = d => d.lessons.filter(l => !l.uitval).map(l => { const [a, b] = (l.tijd || '').split('-').map(toMin); return Object.assign({ a, b }, l); }).filter(l => l.a != null && l.b != null);
+    const timed = d => d.lessons.filter(l => !l.uitval).map(l => { const [a, b0] = (l.tijd || '').split('-').map(toMin), b = lesEnd(a, b0); return Object.assign({ a, b }, l); }).filter(l => l.a != null && l.b != null);
     const ls2 = today ? timed(today) : [];
     const cur = ls2.find(l => mins >= l.a && mins < l.b), next = ls2.find(l => l.a > mins);
     if (!cur && !next) {
@@ -2566,7 +2567,7 @@
     if (!Native || !Native.setRoosterCache) return;
     const n = now().getTime(), out = [];
     Object.values(S.rooster).forEach(days => (days || []).forEach(d => (d.lessons || []).forEach(l => {
-      const [a, b] = (l.tijd || '').split('-').map(toMin);
+      const [a, b0] = (l.tijd || '').split('-').map(toMin), b = lesEnd(a, b0); /* widget: les tot 12:10, niet tot 12:20 */
       if (a == null || b == null) return;
       const s = d.date + a * 60000, e = d.date + b * 60000;
       if (e > n) out.push({ s, e, vak: l.vak || '', lok: l.lokaal || '', uit: !!l.uitval, uur: l.uur || '' });
@@ -2657,6 +2658,16 @@
 
   /* ---------- tab: rooster ---------- */
   function toMin(t) { const m = /(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; }
+  /* een les duurt 45 minuten (website van school). Staat een uur in het rooster langer (het 5e uur: 11:25–12:20), dan zit
+     daar de etenspauze in: de les zelf eindigt na 45 minuten (12:10), daarna is het 10 minuten etenspauze */
+  const LES_MIN = 45;
+  function lesEnd(a, b) { return a != null && b != null && b - a >= LES_MIN + 8 ? a + LES_MIN : b; }
+  const hhmm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+  /* tijd van een les zoals je hem ziet: "11:25 - 12:10" in plaats van "11:25 - 12:20" */
+  function lesTijd(tijd) {
+    const [a, b] = String(tijd || '').split('-').map(toMin), e = lesEnd(a, b);
+    return a == null || b == null || e === b ? (tijd || '') : hhmm(a) + ' - ' + hhmm(e);
+  }
   async function renderRooster() {
     setHeader('Rooster');
     const mon = S.rMonday, key = mon.getTime();
@@ -2729,14 +2740,14 @@
           flush();
         }
         if (!isNaN(u)) prevUur = u;
-        const [a, b] = (l.tijd || '').split('-').map(toMin);
+        const [a, b0] = (l.tijd || '').split('-').map(toMin), b = lesEnd(a, b0); /* einde van de les zelf (zonder etenspauze) */
         const now = isToday && a != null && b != null && nowMin >= a && nowMin < b;
         const gone = isToday && b != null && nowMin >= b;
         const uitval = l.uitval || /vervall|cancel|uitval/i.test(l.status || '');
         const note = [l.wijziging, l.opmerking].filter(Boolean).join(' · ');
         out += `<div class="card-box les${compact ? ' compact' : ''}${now && !uitval ? ' now' : ''}${gone ? ' gone' : ''}${d.date < today.getTime() ? ' pastday' : ''}${uitval ? ' vervallen' : ''}"${isToday && a != null && b != null ? ` data-a="${a}" data-b="${b}"` : ''}>
           <div class="uur"><b>${esc(l.uur || '–')}</b><span>${esc((l.tijd || '').split('-')[0].trim())}</span></div>
-          <div class="wat"><b>${emoji(l.vak)} ${esc(vakName(l.vak))} ${uitval ? '<span class="tag red">UITVAL</span>' : l.type === 'exam' ? '<span class="tag">TOETS</span>' : l.tijdAnders || l.nieuw ? '<span class="tag">GEWIJZIGD</span>' : ''} ${hwTag(d, l)}</b><span>${esc(l.tijd)}${l.docent ? ' · ' + docBtn(l.docent) : ''}</span></div>
+          <div class="wat"><b>${emoji(l.vak)} ${esc(vakName(l.vak))} ${uitval ? '<span class="tag red">UITVAL</span>' : l.type === 'exam' ? '<span class="tag">TOETS</span>' : l.tijdAnders || l.nieuw ? '<span class="tag">GEWIJZIGD</span>' : ''} ${hwTag(d, l)}</b><span>${esc(lesTijd(l.tijd))}${l.docent ? ' · ' + docBtn(l.docent) : ''}</span></div>
           <div class="lok${l.lokaalAnders ? ' changed' : ''}">${esc(l.lokaal || '–')}${l.wasLokaal ? `<small>was ${esc(l.wasLokaal)}</small>` : ''}</div>
           ${note ? `<div class="note">${esc(note)}</div>` : ''}</div>`;
       });
@@ -2777,13 +2788,7 @@
     const hm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
     const uurAB = u => { const t = uurTijd[u]; return t ? Object.keys(t).sort((x, y) => t[y] - t[x])[0].split('-').map(Number) : null; };
     /* pauzes uit de lestijden zelf: een gat van 10+ minuten tussen twee uren is een pauze (met tijden), en een uur dat
-       duidelijk langer is dan een gewoon uur heeft de etenspauze erin (bij school: het 5e uur, 55 i.p.v. 45 minuten) */
-    const lesLen = (() => {
-      const c = {};
-      Object.keys(uurTijd).forEach(u => { const ab = uurAB(+u); if (ab) c[ab[1] - ab[0]] = (c[ab[1] - ab[0]] || 0) + 1; });
-      const k = Object.keys(c).sort((x, y) => c[y] - c[x])[0];
-      return k ? +k : 45;
-    })();
+       duidelijk langer is dan een les van 45 minuten heeft de etenspauze erin (bij school: het 5e uur, zie lesEnd) */
     /* tijden van een uur: uit je rooster, of (heeft niemand les dat uur deze week) uit de lestijden van school */
     const uurTijdOf = u => uurAB(u) || (LESTIJDEN.gewoon[u - 1] ? LESTIJDEN.gewoon[u - 1].split('-').map(toMin) : null);
     const pauzeUren = [];
@@ -2792,8 +2797,8 @@
       const a = uurTijdOf(u), b = uurTijdOf(u + 1);
       if (!a) return null;
       if (b && b[0] - a[1] >= 10) { const n = pauzeUren.indexOf(u) + 1; return (n ? n + 'e pauze' : 'Pauze') + ', ' + hm(a[1]) + '–' + hm(b[0]); }
-      /* hoe lang: de lengte van dit uur min een gewone les (bij school 55 − 45 = 10 minuten) */
-      if (a[1] - a[0] >= lesLen + 8) return 'Etenspauze, ' + (a[1] - a[0] - lesLen) + ' min';
+      /* na de les zelf (45 min) tot het einde van het uur: bij school 12:10–12:20, 10 minuten */
+      if (lesEnd(a[0], a[1]) !== a[1]) { const e = lesEnd(a[0], a[1]); return 'Etenspauze, ' + hm(e) + '–' + hm(a[1]); }
       return null;
     };
     /* verkorte lessen: een dag waarop de meeste lessen minstens 5 minuten korter zijn dan normaal voor dat uur */
@@ -2811,22 +2816,23 @@
       /* roostertabel: dagen naast elkaar, lesuren als rijen */
       const uren = [...new Set(days.flatMap(d => d.lessons.map(l => parseInt(l.uur, 10)).filter(u => !isNaN(u))))].sort((a, b) => a - b);
       const rows = uren.length ? Array.from({ length: uren[uren.length - 1] - uren[0] + 1 }, (_, i) => uren[0] + i) : [];
-      const tijdVan = u => { const ab = uurAB(u); return ab ? `<small>${hm(ab[0])}</small><small class="end">${hm(ab[1])}</small>` : ''; };
+      /* tijden links naast een uur; heeft niemand les dat uur deze week, dan de lestijden van school */
+      const tijdVan = u => { const ab = uurTijdOf(u); return ab ? `<small>${hm(ab[0])}</small><small class="end">${hm(lesEnd(ab[0], ab[1]))}</small>` : ''; };
       /* het weekend van nu (je kijkt al naar volgende week) bovenaan, want dat is vandaag of morgen */
       html += `<div class="swipe-area">${weekendHtml('voor')}<div class="wk" style="grid-template-columns: 38px repeat(${days.length}, 1fr)"><div></div>`;
       days.forEach(d => { const x = new Date(d.date); html += `<div class="wkh${sameDay(x, today) ? ' today' : ''}">${DAYS_SHORT[x.getDay()]}<b>${x.getDate()}</b>${d.lessons.length ? (shortDay(d) ? '<i class="wfree vk" data-lestijden>verkort ⓘ</i>' : '') : '<i class="wfree">vrij</i>'}</div>`; });
       rows.forEach((u, ri) => {
         /* pauze vóór dit uur: een smalle rij over de hele breedte */
         if (ri > 0) { const p = breakAfter(rows[ri - 1]); if (p) html += `<div class="wkp">${esc(p)}</div>`; }
-        const ab = uurAB(u);
-        html += `<div class="wku"${ab ? ` data-a="${ab[0]}" data-b="${ab[1]}"` : ''}><b>${u}</b>${tijdVan(u)}</div>`;
+        const ab = uurTijdOf(u);
+        html += `<div class="wku"${ab ? ` data-a="${ab[0]}" data-b="${lesEnd(ab[0], ab[1])}"` : ''}><b>${u}</b>${tijdVan(u)}</div>`;
         days.forEach((d, di) => {
           const ls2 = d.lessons.filter(l => parseInt(l.uur, 10) === u);
           if (!ls2.length) { html += '<div class="wkc empty"></div>'; return; }
           const l = ls2[0], uit = l.uitval || /vervall|cancel|uitval/i.test(l.status || '');
           const isToday = sameDay(new Date(d.date), today);
           const [a, b] = (l.tijd || '').split('-').map(toMin);
-          const now = isToday && a != null && b != null && nowMin >= a && nowMin < b;
+          const now = isToday && a != null && b != null && nowMin >= a && nowMin < lesEnd(a, b); /* (tijdens de etenspauze is de les al voorbij) */
           /* verkorte les: het vakje is naar verhouding lager (bijv. 35 van de 50 minuten), en de begintijd staat erbij */
           const abN = uurAB(u), kort = a != null && b != null && abN && shortDay(d) && b - a < abN[1] - abN[0];
           const kortH = kort ? Math.max(30, Math.round(48 * (b - a) / (abN[1] - abN[0]))) : 0;
@@ -2848,7 +2854,7 @@
       const frees = days.filter(d => !d.lessons.length);
       if (frees.length) html += frees.map(d => { const why = dayReason(d.date); return `<div class="free small-free"><b>Vrij · ${esc(niceDay(new Date(d.date)))}</b>${why ? `<span>${esc(why)}</span>` : ''}</div>`; }).join('');
       const other = days.flatMap(d => d.lessons.filter(l => isNaN(parseInt(l.uur, 10))).map(l => [d, l]));
-      if (other.length) html += `<div class="day-h">Overig</div>` + other.map(([d, l]) => `<div class="card-box small">${esc(niceDay(new Date(d.date)))} · ${esc(l.tijd)} · ${esc(l.vak)}${l.lokaal ? ' · ' + esc(l.lokaal) : ''}${l.uitval ? ' · <b style="color:var(--red)">uitval</b>' : ''}</div>`).join('');
+      if (other.length) html += `<div class="day-h">Overig</div>` + other.map(([d, l]) => `<div class="card-box small">${esc(niceDay(new Date(d.date)))} · ${esc(lesTijd(l.tijd))} · ${esc(l.vak)}${l.lokaal ? ' · ' + esc(l.lokaal) : ''}${l.uitval ? ' · <b style="color:var(--red)">uitval</b>' : ''}</div>`).join('');
       if (!rows.length && !other.length) html += emptyHtml('rooster', 'Geen lessen deze week', '');
       html += weekendHtml('na');
       html += '<p class="small muted" style="text-align:center;margin-top:4px">Tik op een les voor details</p></div>';
@@ -2876,7 +2882,7 @@
         m.className = 'modal';
         m.innerHTML = `<div class="sheet"><h3>${emoji(l.vak)} ${esc(vakName(l.vak))} ${l.uitval ? '<span class="tag red">UITVAL</span>' : ''}</h3>
           <div class="listrow"><span class="muted">Wanneer</span><b>${esc(niceDay(new Date(d.date)))} · ${esc(l.uur ? l.uur + 'e uur' : '')}</b></div>
-          <div class="listrow"><span class="muted">Tijd</span><b>${esc(l.tijd)}</b></div>
+          <div class="listrow"><span class="muted">Tijd</span><b>${esc(lesTijd(l.tijd))}</b></div>
           <div class="listrow"><span class="muted">Lokaal</span><b>${esc(l.lokaal || '–')}${l.wasLokaal ? ` <span class="muted" style="font-weight:500">(was ${esc(l.wasLokaal)})</span>` : ''}</b></div>
           ${l.docent ? `<div class="listrow"><span class="muted">Docent</span><b>${docBtn(l.docent, true)}</b></div>` : ''}
           ${l.wijziging || l.opmerking ? `<div class="listrow"><span class="muted">Wijziging</span><b>${esc([l.wijziging, l.opmerking].filter(Boolean).join(' · '))}</b></div>` : ''}
@@ -3536,7 +3542,10 @@
     let i = 0, place = null;
     const onTurn = () => { if (!ov.isConnected) { window.removeEventListener('resize', onTurn); return; } if (place) { place(); setTimeout(() => place && place(), 250); } };
     window.addEventListener('resize', onTurn);
+    let ended = false;
     const finish = () => {
+      if (ended) return;
+      ended = true;
       window.removeEventListener('resize', onTurn);
       ls.set('cp:tourDone', 1);
       const seen = ls.get('cp:tips', {}) || {};
@@ -3546,7 +3555,19 @@
       setTimeout(() => ov.remove(), 250);
       go('rooster');
     };
+    /* overslaan: twee keer snel op het logo linksboven tikken (de rondleiding ligt eroverheen, dus kijken we waar je tikt) */
+    let logoTap = 0;
+    ov.addEventListener('click', e => {
+      const mk = sh.querySelector('.hmark');
+      if (!mk) return;
+      const r = mk.getBoundingClientRect(), pad = 10;
+      if (e.clientX < r.left - pad || e.clientX > r.right + pad || e.clientY < r.top - pad || e.clientY > r.bottom + pad) return;
+      const t = performance.now();
+      if (t - logoTap < 500) { buzz(10); toast('Rondleiding overgeslagen'); finish(); }
+      logoTap = t;
+    });
     const show = async () => {
+      if (ended) return;
       const [k, tab, find] = TOUR[i];
       card.classList.remove('in');
       if (S.tab !== tab) { go(tab); await wait(450); }
