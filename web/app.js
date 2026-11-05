@@ -985,7 +985,7 @@
   .app.light .stat + .stat { border-left-color: var(--line); }
   .app.light nav.tabs { border-top-color: transparent; box-shadow: 0 -6px 20px rgb(60 45 10 / .07); }
   .app.light .modal { background: rgb(40 32 15 / .35); }
-  .app.light .nowline, .app.light .nowline::before { background: var(--accent-text); box-shadow: none; }
+  .app.light .nowline, .app.light .nowdot { background: var(--accent-text); box-shadow: none; }
   .app.light .todaycol { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .app.light .calc-entry { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
   .app.light .card-box.hw + .card-box.hw { margin-top: 8px; } /* met schaduwen hebben losse kaarten wat lucht nodig */
@@ -1151,7 +1151,12 @@
   .pz + .card-box.les, .pz + .gap { margin-top: 10px; }
   /* in het weekrooster: een smalle rij over de hele breedte */
   .wkp { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font: 500 10px var(--f-body); color: var(--muted); padding: 0 2px; }
-  .wkp::before, .wkp::after { content: ''; flex: 1; height: 1px; background: var(--line); } /* wat ruimte tussen "Vandaag · 5 lessen" en het eerste kaartje */
+  .wkp::before, .wkp::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  /* het nu-streepje loopt ónder de pauzetekst door: de tekst ligt erboven, met een vlakje in de achtergrondkleur */
+  .wk > .wkp:not(.todaycol):not(.nowline):not(.nowdot), .pz { position: relative; z-index: 4; }
+  .wkp > span, .pz > span { background: var(--bg); padding: 1px 6px; border-radius: 6px; }
+  /* het nu-streepje staat op deze pauze: dan alleen dat streepje, niet ook nog de grijze lijntjes */
+  .wkp.hasnow::before, .wkp.hasnow::after, .pz.hasnow::before, .pz.hasnow::after { visibility: hidden; }
   .les .uur { text-align: left; }
   .les .uur b { display: block; font: 800 22px/1 var(--f-display); font-variant-numeric: tabular-nums; }
   .les .uur span { font: 500 11px var(--f-mono); color: var(--muted); }
@@ -1177,13 +1182,20 @@
   .nc-mini { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .nc-mini b { font: 700 15px var(--f-display); }
   .nc-mini span { font: 500 13px var(--f-body); color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nc-part { display: flex; flex-direction: column; gap: 3px; }
+  .nc-part { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .nc-part + .nc-part { border-top: 1px solid var(--line); padding-top: 10px; }
   .nc-part small { font: 700 13px var(--f-body); color: var(--accent-text); }
-  .nc-part b { display: flex; align-items: center; gap: 8px; font: 800 19px var(--f-display); }
-  .nc-part span { font: 500 13px var(--f-body); color: var(--fg2); }
-  .nc-bar { height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin-top: -2px; }
-  .nc-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
+  .nc-part b { display: flex; align-items: center; gap: 8px; font: 800 19px var(--f-display); min-width: 0; }
+  .nc-vak { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nc-part > span { font: 500 13px var(--f-body); color: var(--fg2); }
+  /* "Nu" en "Straks" naast elkaar: het kaartje wordt een stuk minder hoog */
+  .nowcard.two { grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .nowcard.two .nc-part + .nc-part { border-top: 0; padding-top: 0; border-left: 1px solid var(--line); padding-left: 14px; }
+  .nowcard.two .nc-part b { font-size: 16px; gap: 6px; }
+  .nowcard.two .nc-part > span { font-size: 12px; }
+  /* hoe ver de les is: over de hele breedte, maar dun */
+  .nc-bar { height: 3px; border-radius: 2px; background: var(--surface2); overflow: hidden; margin-top: 4px; }
+  .nc-bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; }
   .free { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 28px 16px; border-radius: 18px;
     background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--line)); }
   .free b { font: 800 30px var(--f-display); letter-spacing: -.02em; color: var(--accent-text); }
@@ -1245,13 +1257,14 @@
   .wkc.uit, .les.vervallen { background: repeating-linear-gradient(135deg, var(--red-bg) 0 7px, color-mix(in srgb, var(--red) 16%, var(--red-bg)) 7px 10px); }
   /* vandaag in de weekweergave en het streepje van "nu" */
   .todaycol { position: absolute; z-index: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
-  .wk > :not(.todaycol):not(.nowline) { position: relative; z-index: 1; }
+  .wk > :not(.todaycol):not(.nowline):not(.nowdot) { position: relative; z-index: 1; }
   /* zwart thema: vandaag duidelijker dan de vakjes zelf (anders bijna dezelfde kleur) */
   /* kolom van vandaag: zacht, zodat hij niet schreeuwt (vooral bij felle kleuren zoals cyaan op zwart) */
   .app:not(.light) .todaycol { background: color-mix(in srgb, var(--accent) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent); }
   .app:not(.light) .wkc[data-today]:not(.uit):not(.now) { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
   .nowline { position: absolute; left: 0; right: 0; height: 2px; margin-top: -1px; background: var(--accent); z-index: 3; pointer-events: none; border-radius: 1px; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent); }
-  .nowline::before { content: ''; position: absolute; left: var(--dot, 0px); top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); }
+  /* half doorzichtig: valt hij over een pauzetekst, dan kun je die nog redelijk lezen */
+  .nowdot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent); opacity: .6; z-index: 6; pointer-events: none; }
   .swipe-area > .nowline { left: -6px; right: -6px; }
   /* cijfers: een klein beetje ruimte tussen de vakken */
   .swipe-area.grades { display: flex; flex-direction: column; gap: 8px; }
@@ -2553,11 +2566,13 @@
       return `<div class="nowcard mini"><span class="nc-dot"></span><div class="nc-mini"><b>${esc(head)}</b>${first ? `<span>Volgende les: ${esc(String(first.vak).toUpperCase())}${first.lokaal ? ' in ' + esc(first.lokaal) : ''}, ${esc(when)} om ${hm(first.a)}</span>` : '<span>Geen les op dit moment</span>'}</div></div>`;
     }
     const left = cur ? cur.b - mins : 0;
-    const part = (label, l, sub) => `<div class="nc-part"><small>${label}</small><b>${emoji(l.vak)} ${esc(vakName(l.vak))}</b><span>${l.lokaal ? 'In ' + esc(l.lokaal) + ', ' : ''}${sub}</span></div>`;
-    return `<div class="nowcard">
-      ${cur ? part(`Nu, nog ${left} min`, cur, 'tot ' + hm(cur.b)) + `<div class="nc-bar"><i style="width:${Math.round((mins - cur.a) / (cur.b - cur.a) * 100)}%"></i></div>`
+    /* "Nu" en "Straks" naast elkaar (minder hoog); het balkje hoort bij "Nu" en staat eronder */
+    const part = (label, l, sub, extra) => `<div class="nc-part"><small>${label}</small><b>${emoji(l.vak)} <span class="nc-vak">${esc(vakName(l.vak))}</span></b><span>${l.lokaal ? 'In ' + esc(l.lokaal) + ', ' : ''}${sub}</span>${extra || ''}</div>`;
+    const two = !!(cur && next);
+    return `<div class="nowcard${two ? ' two' : ''}">
+      ${cur ? part(`Nu, nog ${left} min`, cur, 'tot ' + hm(cur.b), `<div class="nc-bar"><i style="width:${Math.round((mins - cur.a) / (cur.b - cur.a) * 100)}%"></i></div>`)
         : part(`${ls2.some(l => l.b <= mins) ? 'Volgende les' : 'Eerste les'} over ${next.a - mins >= 60 ? Math.floor((next.a - mins) / 60) + ' u ' : ''}${(next.a - mins) % 60} min`, next, 'om ' + hm(next.a))}
-      ${cur && next ? part('Straks om ' + hm(next.a), next, (next.a - cur.b > 5 ? 'na een pauze' : 'direct erna')) : ''}
+      ${two ? part('Straks om ' + hm(next.a), next, (next.a - cur.b > 5 ? 'na een pauze' : 'direct erna')) : ''}
     </div>`;
   }
 
@@ -2608,7 +2623,7 @@
     const wk = main.querySelector('.wk');
     const box = wk || main.querySelector('.swipe-area');
     if (!box) return;
-    box.querySelectorAll('.nowline, .todaycol').forEach(el => el.remove());
+    box.querySelectorAll('.nowline, .nowdot, .todaycol').forEach(el => el.remove());
     box.style.position = 'relative';
     const th = wk && wk.querySelector('.wkh.today');
     if (wk && !th) return; /* vandaag staat niet in deze week */
@@ -2630,12 +2645,25 @@
       if (nx && mins >= b && mins < +nx.dataset.a) { y = (r.offsetTop + r.offsetHeight + nx.offsetTop) / 2; break; }
     }
     if (y == null) return;
+    /* valt "nu" in een pauze: precies op het midden van de pauzeregel, en dan de grijze lijntjes van die regel weg
+       (anders liepen er twee lijnen net niet op dezelfde hoogte langs de tekst) */
+    box.querySelectorAll('.wkp.hasnow, .pz.hasnow').forEach(p => p.classList.remove('hasnow'));
+    const pz = [...box.querySelectorAll(wk ? '.wkp' : '.pz')].find(p => y >= p.offsetTop - 6 && y <= p.offsetTop + p.offsetHeight + 6);
+    if (pz) { y = pz.offsetTop + pz.offsetHeight / 2; pz.classList.add('hasnow'); }
     const line = document.createElement('div');
     line.className = 'nowline';
     line.style.top = Math.round(y) + 'px';
     const axis = wk && wk.querySelector('.wku');
-    if (wk) { line.style.left = (axis.offsetLeft + axis.offsetWidth) + 'px'; line.style.setProperty('--dot', (th.offsetLeft + 3 - axis.offsetLeft - axis.offsetWidth) + 'px'); } /* bolletje links in de kolom van vandaag, zodat vak en lokaal vrij blijven */
+    let dotX = 0;
+    if (wk) { line.style.left = (axis.offsetLeft + axis.offsetWidth) + 'px'; dotX = th.offsetLeft + 3; } /* bolletje links in de kolom van vandaag, zodat vak en lokaal vrij blijven */
     box.appendChild(line);
+    /* het bolletje is een los stukje dat altijd bovenop ligt: het streepje loopt onder een pauzetekst door, het bolletje
+       blijft zichtbaar (ook als vandaag een middelste dag is en de tekst daar precies staat) */
+    const dot = document.createElement('div');
+    dot.className = 'nowdot';
+    dot.style.top = Math.round(y) + 'px';
+    dot.style.left = dotX + 'px';
+    box.appendChild(dot);
   }
 
   /* lestijden van school (ichthuscollege.nl → Lestijden en vakanties); verkort o.a. tijdens rapportvergaderingen */
@@ -2734,7 +2762,7 @@
           const flush = () => { if (free) out += `<div class="gap">${free === 1 ? 'tussenuur' : free + ' tussenuren'}</div>`; free = 0; };
           for (let k = prevUur; k < u; k++) {
             const p = breakAfter(k);
-            if (p) { flush(); out += `<div class="pz">${esc(p)}</div>`; }
+            if (p) { flush(); out += `<div class="pz"><span>${esc(p)}</span></div>`; }
             if (k + 1 < u) free++;
           }
           flush();
@@ -2823,7 +2851,7 @@
       days.forEach(d => { const x = new Date(d.date); html += `<div class="wkh${sameDay(x, today) ? ' today' : ''}">${DAYS_SHORT[x.getDay()]}<b>${x.getDate()}</b>${d.lessons.length ? (shortDay(d) ? '<i class="wfree vk" data-lestijden>verkort ⓘ</i>' : '') : '<i class="wfree">vrij</i>'}</div>`; });
       rows.forEach((u, ri) => {
         /* pauze vóór dit uur: een smalle rij over de hele breedte */
-        if (ri > 0) { const p = breakAfter(rows[ri - 1]); if (p) html += `<div class="wkp">${esc(p)}</div>`; }
+        if (ri > 0) { const p = breakAfter(rows[ri - 1]); if (p) html += `<div class="wkp"><span>${esc(p)}</span></div>`; }
         const ab = uurTijdOf(u);
         html += `<div class="wku"${ab ? ` data-a="${ab[0]}" data-b="${lesEnd(ab[0], ab[1])}"` : ''}><b>${u}</b>${tijdVan(u)}</div>`;
         days.forEach((d, di) => {
