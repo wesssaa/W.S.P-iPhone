@@ -91,11 +91,24 @@ final class Portal {
         for c in fresh { await Self.cookieStore().setCookie(c) }
     }
 
-    /* sessiecookies van het portaal een vervaldatum geven, zodat je na het sluiten van de app ingelogd blijft */
+    /* sessiecookies van het portaal én van de inlog van Microsoft een vervaldatum geven, zodat je na het sluiten van de app
+       ingelogd blijft. Android bewaart sessiecookies vanzelf; iOS gooit ze weg als de app stopt. Was de sessie van het
+       portaal dan verlopen, dan kende Microsoft je ook niet meer en moest je elke keer opnieuw inloggen. */
+    static let keepHosts = [WebViewController.portalHost, "login.microsoftonline.com", "login.microsoft.com", "login.live.com", "login.windows.net"]
+
+    /* hoort deze cookie bij een van de hosts hierboven? Let op: Microsoft zet zijn inlogcookies op ".login.microsoftonline.com"
+       (met een punt ervoor); die moeten ook meetellen, anders gooit iOS ze weg en moet je steeds opnieuw inloggen.
+       Ook subdomeinen (bijv. device.login.microsoftonline.com) en een bredere cookie (".ichthuscollege.nl") tellen mee. */
+    static func shouldKeep(_ c: HTTPCookie) -> Bool {
+        let d = c.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        if d.isEmpty { return false }
+        return keepHosts.contains { h in h == d || h.hasSuffix("." + d) || d.hasSuffix("." + h) }
+    }
+
     static func persistCookies() async {
         let all = await cookieStore().allCookies()
-        let host = WebViewController.portalHost
-        for c in all where c.expiresDate == nil && (host == c.domain || host.hasSuffix(c.domain.hasPrefix(".") ? c.domain : "." + c.domain)) {
+        let keep = shouldKeep
+        for c in all where c.expiresDate == nil && keep(c) {
             var p = c.properties ?? [:]
             p[.expires] = Date().addingTimeInterval(30 * 86400)
             p.removeValue(forKey: .discard)
