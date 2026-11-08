@@ -10,6 +10,12 @@
   if (window.__cpApp) { window.__cpApp.refresh(); return; }
 
   const Native = window.CijferApp || (DEMO && DEMO.native) || null;
+  /* Music Edition: alleen als de app een muziekkoppeling heeft (de gewone W.S.P heeft die niet en blijft hetzelfde) */
+  const MN = window.CijferMusic || Native; /* in de Music Edition-app een aparte koppeling, in de preview de voorbeelddata */
+  const MUSIC = !!(MN && MN.musicSearch);
+  /* logo's: de Music Edition heeft de C.R.H met de noot-H (music-mark.png, music-icon-*.png; niet "mark-..."/"icon-...",
+     want make-icons.ps1 van de gewone W.S.P gooit die weg en maakt ze opnieuw) */
+  function logoFile(n) { return MUSIC ? 'music-' + n : n; }
   /* plaatjes en lettertypes uit de app zelf; de iPhone-app kan /__ichthusplus/ niet onderscheppen en geeft ze als data-URL mee */
   const ASSETS = window.__cpAssets || null;
   const assetUrl = p => (ASSETS && ASSETS[p]) || (DEMO ? '/app/assets/' : '/__ichthusplus/') + p;
@@ -1474,7 +1480,8 @@
     packs: svg('<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18M12 8v13M12 8c-1.5-3-5.5-4-5.5-1.5S10 8 12 8zM12 8c1.5-3 5.5-4 5.5-1.5S14 8 12 8z"/>'),
     meer: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
     refresh: svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/>'),
-    bell: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/>')
+    bell: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'),
+    muziek: svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')
   };
   const TABS = [
     { k: 'rooster', label: 'Rooster' },
@@ -1482,6 +1489,7 @@
     { k: 'cijfers', label: 'Cijfers' },
     { k: 'meer', label: 'Meer' }
   ];
+  if (MUSIC) TABS.push({ k: 'muziek', label: 'Muziek' }); /* helemaal rechts, na Meer */
   sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="C.R.H" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
     <p class="hday"></p><button class="ibtn" data-a="refresh" aria-label="Vernieuwen">${ICONS.refresh}</button></header><main></main>
     <nav class="tabs"></nav></div>`;
@@ -1531,7 +1539,7 @@
     try { if (Native && Native.setTheme) Native.setTheme(t); } catch (e) {}
     /* het logo bovenin: zwart vierkant in het witte thema, wit vierkant in het zwarte thema */
     const mk = sh.querySelector('.hmark');
-    if (mk) mk.src = assetUrl('themes/' + (t === 'light' ? 'mark.png' : 'mark-wit.png'));
+    if (mk) mk.src = assetUrl('themes/' + logoFile(t === 'light' ? 'mark.png' : 'mark-wit.png'));
     return t;
   }
   let theme = applyTheme(ls.get('cp:theme', 'light')); /* standaard: wit met geel */
@@ -1539,7 +1547,7 @@
 
   /* weergave: wit of zwart, met een eigen accentkleur (geen achtergrondfoto's: die kostten veel geheugen) */
   const ASSET = n => assetUrl('themes/' + n);
-  sh.querySelector('.hmark').src = ASSET(theme === 'light' ? 'mark.png' : 'mark-wit.png');
+  sh.querySelector('.hmark').src = ASSET(logoFile(theme === 'light' ? 'mark.png' : 'mark-wit.png'));
   /* van een oudere versie: een gekozen foto-thema of eigen foto opruimen */
   if (ls.get('cp:themeSet', 'custom') !== 'custom' || ls.get('cp:ownPhoto', null)) {
     try { localStorage.removeItem('cp:ownPhoto'); localStorage.removeItem('cp:themeSet'); } catch (e) {}
@@ -1563,12 +1571,12 @@
   /* tabbalk zelf indelen: volgorde en zichtbaarheid (Meer staat altijd achteraan) */
   function tabLayout() {
     const saved = ls.get('cp:tabs', null);
-    const keys = TABS.filter(t => t.k !== 'meer').map(t => t.k);
+    const keys = TABS.filter(t => t.k !== 'meer' && t.k !== 'muziek').map(t => t.k);
     const list = Array.isArray(saved) ? saved.filter(t => keys.includes(t.k)) : [];
     keys.forEach(k => { if (!list.some(t => t.k === k)) list.push({ k, on: true }); });
     return list;
   }
-  const visibleTabs = () => tabLayout().filter(t => t.on).map(t => t.k).concat('meer');
+  const visibleTabs = () => tabLayout().filter(t => t.on).map(t => t.k).concat('meer', MUSIC ? ['muziek'] : []);
   function drawNav() {
     const nav = sh.querySelector('nav.tabs'), vis = visibleTabs();
     nav.style.gridTemplateColumns = `repeat(${vis.length}, 1fr)`;
@@ -1766,8 +1774,748 @@
     updateNav();
     if (S.tab === 'meer' && !sh.querySelector('.modal, .panel, .ov')) renderMore();
   }
-  function go(tab) {
+  /* ================= Music Edition: muziekspeler in het W.S.P-thema, met de indeling van Metrolist =================
+     Zoeken, afspelen en downloaden doet de app zelf (de code van Metrolist, via YouTube Music); deze pagina tekent
+     alleen. Brug (MN = window.CijferMusic, in de preview voorbeelddata):
+       musicHome/musicLibrary/musicQueue/musicAccount/musicGetSettings/musicLogout(reqId), musicSearch(q, reqId),
+       musicHomeChip(params, reqId) -> window.__cpMusicRes(reqId, json)
+       musicPlay(queueJson, index), musicCmd(cmd, arg), musicState() -> json, musicLike/musicDownload(songJson, aan),
+       musicSongAction(next|queue|radio|share, songJson), musicQueueJump(i), musicLogin(), musicSetSetting(k, v),
+       musicWarm(), musicPrefetch(idsJson): alvast de afspeel-link ophalen zodat een nummer meteen start.
+     De app meldt wijzigingen in de speler met window.__cpMusicState(json). Een nummer: { id, title, artist, album, dur (s), thumb } */
+  const M = { view: ls.get('cp:mStart', 'ontdek'), libTab: ls.get('cp:mLibStart', 'lijsten'), libOpen: null, q: '', searching: false, home: null, chip: null,
+    album: null, plists: null, plOpen: null, lyrics: {}, showLyrics: false,
+    search: null, lib: null, acc: null, st: null, playerOpen: false, req: 0, wait: {} };
+  function mCall(fn, ...args) {
+    return new Promise(res => {
+      const id = 'm' + (++M.req);
+      M.wait[id] = res;
+      try { MN[fn](...args, id); } catch (e) { delete M.wait[id]; res({ error: String(e && e.message || e) }); }
+      setTimeout(() => { if (M.wait[id]) { delete M.wait[id]; res({ error: 'Duurt te lang, controleer je internet.' }); } }, 25000);
+    });
+  }
+  window.__cpMusicRes = (id, json) => { const r = M.wait[id]; if (!r) return; delete M.wait[id]; try { r(JSON.parse(json)); } catch (e) { r({ error: 'Onleesbaar antwoord' }); } };
+  window.__cpMusicState = json => { try { M.st = JSON.parse(json); } catch (e) { return; } musicDrawBar(); if (M.playerOpen) musicDrawPlayer(); if (S.tab === 'muziek') musicMarkPlaying(); };
+  const mFmt = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const mArt = (song, cls = '') => {
+    if (song && song.thumb) return `<img class="m-art ${cls}" src="${esc(song.thumb)}" alt="" loading="lazy">`;
+    const t = (song && song.title) || '♪', h = [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
+    return `<span class="m-art ${cls}" style="background:linear-gradient(135deg,hsl(${h} 55% 50%),hsl(${(h + 60) % 360} 55% 28%))">${esc(t[0])}</span>`;
+  };
+  const MI = {
+    play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg>',
+    next: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 5v14l10-7zM17 5h2.5v14H17z"/></svg>',
+    prev: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 5v14L9 12zM4.5 5H7v14H4.5z"/></svg>',
+    dl: svg('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'), dlOk: svg('<path d="M5 12.5l4.5 4.5L19 7.5M5 21h14"/>'),
+    heart: svg('<path d="M12 20s-7.5-4.6-9.2-9.2C1.6 7.4 3.8 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.4 0 5.6 3.4 4.4 6.8C19.5 15.4 12 20 12 20z"/>'),
+    shuffle: svg('<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>'), repeat: svg('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>'),
+    down: svg('<path d="M6 9l6 6 6-6"/>'), back: svg('<path d="M15 18l-6-6 6-6"/>'), search: svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
+    gear: ICONS.meer, user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
+    queue: svg('<path d="M4 6h12M4 12h12M4 18h7M16 15v6l5-3z"/>'), next2: svg('<path d="M4 6h12M4 12h12M4 18h8M19 14v8M15 18h8"/>'),
+    radio: svg('<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/>'),
+    share: svg('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>'),
+    plus: svg('<path d="M12 5v14M5 12h14"/>'), lyrics: svg('<path d="M4 5h16v11H8l-4 4zM8 9h8M8 12h5"/>'),
+    hist: svg('<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3"/>'), moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'), disc: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>')
+  };
+  const mCur = () => M.st && M.st.song;
+  const mLiked = id => !!(M.lib && (M.lib.liked || []).some(s => s.id === id));
+  const mDled = id => !!(M.lib && (M.lib.downloaded || []).some(s => s.id === id));
+  /* lijsten bewaren op naam, zodat een tik weet welk nummer en welke wachtrij */
+  const mLists = {};
+  const mList = (name, items) => { mLists[name] = items || []; return name; };
+  function musicRow(s, list, i) {
+    const on = mCur() && mCur().id === s.id;
+    return `<div class="m-row${on ? ' on' : ''}" data-mplay="${i}" data-mlist="${list}">${mArt(s)}
+      <div class="m-t"><b>${esc(s.title)}</b><span>${mLiked(s.id) ? '<i class="m-like">' + MI.heart + '</i>' : ''}${mDled(s.id) ? '<i class="m-ok">' + MI.dlOk + '</i>' : ''}${esc(s.artist || '')}${s.dur ? ' • ' + mFmt(s.dur) : ''}</span></div>
+      <button class="m-ib" data-mmenu="${i}" data-mlist="${list}" aria-label="Meer">${MI.more}</button></div>`;
+  }
+  function mStyle() { if (!sh.querySelector('.m-style')) { const st = document.createElement('style'); st.className = 'm-style'; st.textContent = MUSIC_CSS; sh.appendChild(st); } }
+  async function musicLoad(what) {
+    if (what === 'home' && !M.home) { M.home = await mCall('musicHome'); }
+    if (what === 'lib' || !M.lib) { const r = await mCall('musicLibrary'); if (!r.error) M.lib = r; }
+    if (!M.acc) { const a = await mCall('musicAccount'); if (!a.error) M.acc = a; }
+    if (S.tab === 'muziek') musicDrawPage();
+  }
+  function renderMusic() {
+    setHeader('Muziek');
+    mStyle();
+    musicDrawPage();
+    musicLoad('home');
+    try { MN.musicWarm && MN.musicWarm(); } catch (e) {} /* afspelen alvast klaarzetten: het eerste nummer start dan sneller */
+  }
+  /* ---------- de pagina ---------- */
+  function musicTop() {
+    const acc = M.acc, letter = acc && acc.loggedIn && acc.name ? esc(acc.name.trim()[0].toUpperCase()) : '';
+    return `<div class="m-top"><div class="m-chips">${[['ontdek', 'Ontdekken'], ['bieb', 'Bibliotheek']].map(([k, l]) => `<button class="m-chip${M.view === k && !M.searching ? ' on' : ''}" data-mview="${k}">${l}</button>`).join('')}</div>
+      <button class="m-ib" data-msearch aria-label="Zoeken">${MI.search}</button>
+      <button class="m-ib" data-msettings aria-label="Instellingen muziek">${MI.gear}</button>
+      <button class="m-avatar${letter ? ' in' : ''}" data-msettings aria-label="Account">${letter || MI.user}</button></div>`;
+  }
+  function musicDiscover() {
+    const h = M.home;
+    if (!h) return '<div class="m-chiprow">' + '<span class="m-chip m-skel">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'.repeat(4) + '</div>'
+      + '<div class="m-h">&nbsp;</div><div class="m-grid">' + '<div class="m-row m-skel"><span class="m-art"></span><div class="m-t"><b>&nbsp;</b><span>&nbsp;</span></div></div>'.repeat(4) + '</div>';
+    if (h.error) return errBox(h.error);
+    const chips = (h.chips || []).length ? `<div class="m-chiprow">${h.chips.map((c, i) => `<button class="m-chip${M.chip === i ? ' on' : ''}" data-mmood="${i}">${esc(c.title)}</button>`).join('')}</div>` : '';
+    return chips + h.sections.map((sec, n) => {
+      const name = mList('h' + n, sec.items);
+      const all = `<button class="m-all" data-mplay="0" data-mlist="${name}">${MI.play} Alles</button>`;
+      if (sec.cards) return `<div class="m-h">${esc(sec.title)}</div><div class="m-cards">${sec.items.map((s, i) => `<button class="m-card" data-mplay="${i}" data-mlist="${name}">${mArt(s, 'big')}<b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></button>`).join('')}</div>`;
+      /* zoals Quick picks in Metrolist: 4 rijen onder elkaar, opzij vegen voor meer */
+      return `<div class="m-h">${esc(sec.title)}${all}</div><div class="m-grid">${sec.items.map((s, i) => musicRow(s, name, i)).join('')}</div>`;
+    }).join('');
+  }
+  function libAll() {
+    const l = M.lib || {}, seen = new Set(), out = [];
+    ['liked', 'downloaded', 'recent'].forEach(k => (l[k] || []).forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); out.push(s); } }));
+    return out;
+  }
+  const LIB_LISTS = { liked: ['Leuk gevonden', 'heart'], downloaded: ['Gedownload', 'dlOk'], recent: ['Laatst geluisterd', 'hist'] };
+  /* een afspeellijst of album als pagina: hoes, titel, afspelen/shuffle, (bij een lijst) downloaden aan/uit, nummers */
+  function musicCollection(o, backAttr) {
+    if (!o || o.loading) return `<div class="m-subhead"><button class="m-ib" ${backAttr} aria-label="Terug">${MI.back}</button><b>${esc((o && o.title) || '')}</b></div><div class="muted small m-pad">Laden…</div>`;
+    if (o.error) return `<div class="m-subhead"><button class="m-ib" ${backAttr} aria-label="Terug">${MI.back}</button></div>${errBox(o.error)}`;
+    const items = o.songs || [], name = mList('coll', items);
+    const cover = o.thumb ? mArt({ title: o.title, thumb: o.thumb }, 'cover') : items[0] ? mArt(items[0], 'cover') : `<span class="m-art cover m-tboxart">${MI.queue}</span>`;
+    return `<div class="m-subhead"><button class="m-ib" ${backAttr} aria-label="Terug">${MI.back}</button></div>
+      <div class="m-collhead">${cover}<b>${esc(o.title)}</b><span>${o.artist ? esc(o.artist) + ' · ' : ''}${o.year ? o.year + ' · ' : ''}${items.length} nummers</span></div>
+      <div class="m-acts">${o.pl ? `<button class="m-dltoggle${o.download ? ' on' : ''}" data-mpldl="${esc(o.id)}">${o.download ? MI.dlOk + ' Gedownload' : MI.dl + ' Downloaden'}</button>` : ''}
+        ${items.length ? `<button class="m-bigplay" data-mplay="0" data-mlist="${name}" aria-label="Afspelen">${MI.play}</button><button class="m-ib" data-mshuffle="${name}" aria-label="Shuffle">${MI.shuffle}</button>` : ''}</div>
+      ${o.pl && o.download ? '<p class="small muted m-dlnote">Nummers die je later aan deze lijst toevoegt, worden ook gedownload.</p>' : ''}
+      ${items.length ? `<div class="card-box m-list">${items.map((s, i) => musicRow(s, name, i)).join('')}</div>` : '<div class="muted small m-pad">Nog geen nummers. Voeg ze toe via de drie puntjes bij een nummer.</div>'}`;
+  }
+  const plTile = p => {
+    const th = (p.thumbs || []).slice(0, 4);
+    const box = th.length >= 4 ? `<span class="m-tbox m-collage">${th.map(u => `<img src="${esc(u)}" alt="" loading="lazy">`).join('')}</span>`
+      : th.length ? `<span class="m-tbox"><img class="m-tboximg" src="${esc(th[0])}" alt="" loading="lazy"></span>` : `<span class="m-tbox">${MI.queue}</span>`;
+    return `<button class="m-tile" data-mpl="${esc(p.id)}">${box}<b>${esc(p.title)}</b><span>${p.download ? '<i class="m-ok">' + MI.dlOk + '</i> ' : ''}${p.count} nummers</span></button>`;
+  };
+  async function musicLoadPlaylists() { const r = await mCall('musicPlaylists'); if (!r.error) M.plists = r.playlists || []; if (S.tab === 'muziek') musicDrawPage(); }
+  async function musicOpenPlaylist(id) {
+    const p = (M.plists || []).find(x => x.id === id);
+    M.plOpen = { id, pl: true, loading: true, title: p ? p.title : '' };
+    musicDrawPage(); main.scrollTop = 0;
+    const r = await mCall('musicPlaylist', id);
+    if (!M.plOpen || M.plOpen.id !== id) return;
+    M.plOpen = Object.assign({ pl: true }, r);
+    musicDrawPage();
+  }
+  /* eigen vensters in W.S.P-stijl (de standaard prompt/confirm van Android heet "JavaScript" en past er niet bij) */
+  function mAsk(title, opts = {}) {
+    return new Promise(done => {
+      let answered = false;
+      const finish = v => { if (answered) return; answered = true; done(v); };
+      const close = musicSheet(`<div class="m-ask"><div class="setting-h">${esc(title)}</div>${opts.text ? `<p class="small muted">${esc(opts.text)}</p>` : ''}
+        ${opts.input ? `<input class="m-askin" type="text" maxlength="100" placeholder="${esc(opts.input)}" enterkeyhint="done">` : ''}
+        <div class="m-askbtns"><button class="btn ghost" data-ma="no">Annuleren</button><button class="btn" data-ma="yes">${esc(opts.ok || 'OK')}</button></div></div>`, a => {
+        const v = sh.querySelector('.m-askin');
+        finish(a === 'yes' ? (opts.input ? (v ? v.value.trim() : '') : true) : null);
+      });
+      const inp = sh.querySelector('.m-askin');
+      if (inp) {
+        setTimeout(() => inp.focus(), 280);
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { const v = inp.value.trim(); close(); finish(v); } });
+      }
+      const bg = sh.querySelector('.m-sheetbg');
+      if (bg) new MutationObserver((m, o) => { if (!bg.isConnected) { o.disconnect(); finish(null); } }).observe(app, { childList: true });
+    });
+  }
+  async function musicNewPlaylist(then) {
+    const name = await mAsk('Nieuwe afspeellijst', { input: 'Naam van de lijst', ok: 'Maken', text: M.acc && M.acc.loggedIn ? 'Komt ook in je YouTube Music.' : 'Wordt op deze telefoon bewaard; inloggen is niet nodig.' });
+    if (!name || !name.trim()) return;
+    const r = await mCall('musicCreatePlaylist', name.trim());
+    if (r.error) return toast(r.error);
+    toast('Afspeellijst gemaakt: ' + name.trim());
+    await musicLoadPlaylists();
+    if (then) then(r.id, name.trim());
+  }
+  function musicLibrary() {
+    const l = M.lib;
+    if (!l) return '<div class="muted small m-pad">Laden…</div>';
+    if (M.plOpen) return musicCollection(M.plOpen, 'data-mplback');
+    if (M.libOpen) {
+      const [key, title] = M.libOpen, items = key.startsWith('g:') ? libAll().filter(s => (key[2] === 'a' ? s.artist : s.album) === key.slice(4)) : (l[key] || []);
+      const name = mList('open', items);
+      return `<div class="m-subhead"><button class="m-ib" data-mlibback aria-label="Terug">${MI.back}</button><b>${esc(title)}</b><span class="muted small">${items.length} nummers</span></div>
+        ${items.length ? `<div class="m-acts"><button class="m-bigplay" data-mplay="0" data-mlist="${name}">${MI.play}</button><button class="m-ib" data-mshuffle="${name}" aria-label="Shuffle">${MI.shuffle}</button></div>
+        <div class="card-box m-list">${items.map((s, i) => musicRow(s, name, i)).join('')}</div>` : '<div class="muted small m-pad">Nog niets hier.</div>'}`;
+    }
+    const tabs = [['lijsten', 'Afspeellijsten'], ['nummers', 'Nummers'], ['albums', 'Albums'], ['artiesten', 'Artiesten']];
+    let body = '';
+    const all = libAll();
+    if (M.libTab === 'lijsten') {
+      if (!M.plists) musicLoadPlaylists();
+      body = `<div class="m-tiles">${Object.entries(LIB_LISTS).map(([k, [t, ic]]) => `<button class="m-tile" data-mlib="${k}"><span class="m-tbox">${MI[ic]}</span><b>${t}</b><span>${(l[k] || []).length} nummers</span></button>`).join('')}
+        ${(M.plists || []).map(plTile).join('')}
+        <button class="m-tile" data-mplnew><span class="m-tbox m-new">${MI.plus}</span><b>Nieuwe lijst</b><span>maken</span></button></div>`;
+    }
+    if (M.libTab === 'nummers') { const n = mList('alles', all); body = all.length ? `<div class="card-box m-list">${all.map((s, i) => musicRow(s, n, i)).join('')}</div>` : '<div class="muted small m-pad">Nog geen nummers. Vind iets leuk, download iets of luister wat.</div>'; }
+    if (M.libTab === 'albums' || M.libTab === 'artiesten') {
+      const field = M.libTab === 'albums' ? 'album' : 'artist', groups = {};
+      all.forEach(s => { const g = s[field]; if (g) (groups[g] = groups[g] || []).push(s); });
+      const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+      body = keys.length ? `<div class="m-tiles">${keys.map(g => `<button class="m-tile${field === 'artist' ? ' round' : ''}" data-mlib="g:${field[1]}:${esc(g)}" data-mlibtitle="${esc(g)}">${mArt(groups[g][0], 'tilebox')}<b>${esc(g)}</b><span>${groups[g].length} nummers</span></button>`).join('')}</div>`
+        : '<div class="muted small m-pad">Nog niets hier.</div>';
+    }
+    return `<div class="m-chiprow">${tabs.map(([k, t]) => `<button class="m-chip${M.libTab === k ? ' on' : ''}" data-mlibtab="${k}">${t}</button>`).join('')}</div>${body}`;
+  }
+  function musicDrawPage() {
+    if (S.tab !== 'muziek') return;
+    let body;
+    if (M.album) body = musicCollection(M.album, 'data-malbumback');
+    else if (M.searching) {
+      const r = M.search, q = M.q.trim();
+      body = `<label class="m-search"><button class="m-ib" data-msearchclose aria-label="Terug">${MI.back}</button><input type="search" placeholder="Zoek in YouTube Music" value="${esc(M.q)}" enterkeyhint="search">${M.q ? `<button class="m-ib" data-mclear aria-label="Wissen">${MI.x}</button>` : ''}</label>`
+        + (!q ? '<div class="muted small m-pad">Typ een nummer of artiest.</div>'
+          : !r || r.q !== q ? '<div class="muted small m-pad">Zoeken…</div>'
+          : r.error ? errBox(r.error)
+          : !r.songs.length && !(r.albums || []).length ? `<div class="muted small m-pad">Niets gevonden voor "${esc(r.q)}".</div>`
+          : `${(r.albums || []).length ? `<div class="m-h">Albums</div><div class="m-cards">${r.albums.map((a, i) => `<button class="m-card" data-malbum="${i}">${mArt(a, 'big')}<b>${esc(a.title)}</b><span>${esc(a.artist || '')}${a.year ? ' · ' + a.year : ''}</span></button>`).join('')}</div>` : ''}
+            ${r.songs.length ? `<div class="m-h">Nummers</div><div class="card-box m-list">${r.songs.map((s, i) => musicRow(s, mList('zoek', r.songs), i)).join('')}</div>` : ''}`);
+    } else body = musicTop() + (M.view === 'ontdek' ? musicDiscover() : musicLibrary());
+    const keepFocus = sh.activeElement && sh.activeElement.matches && sh.activeElement.matches('.m-search input');
+    main.innerHTML = `<div class="pad m-page">${body}<p class="muted small m-credit">Music Edition · muziek via YouTube Music · speler gemaakt met Metrolist</p></div>`;
+    const inp = main.querySelector('.m-search input');
+    if (inp && (keepFocus || M.searching && !M.q)) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    musicPrefetchVisible();
+  }
+  /* de bovenste nummers alvast klaarzetten (afspeel-link ophalen), zodat ze direct beginnen als je erop tikt */
+  function musicPrefetchVisible() {
+    if (!MN.musicPrefetch) return;
+    const ids = [...main.querySelectorAll('.m-row[data-mplay], .m-card[data-mplay]')].slice(0, 4).map(b => (mLists[b.dataset.mlist] || [])[+b.dataset.mplay]).filter(Boolean).map(s => s.id);
+    if (ids.length) try { MN.musicPrefetch(JSON.stringify([...new Set(ids)])); } catch (e) {}
+  }
+  function musicMarkPlaying() {
+    const cur = mCur();
+    main.querySelectorAll('.m-row[data-mplay]').forEach(r => { const s = (mLists[r.dataset.mlist] || [])[+r.dataset.mplay]; r.classList.toggle('on', !!(cur && s && s.id === cur.id)); });
+  }
+  function musicPlayList(list, i) {
+    if (!list[i]) return;
+    M.st = Object.assign({}, M.st || {}, { song: list[i], loading: true, playing: false, pos: 0, dur: list[i].dur || 0 });
+    musicDrawBar(); musicMarkPlaying();
+    try { MN.musicPlay(JSON.stringify(list), i); } catch (err) { toast('Afspelen lukt niet'); }
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+  let mSearchT = 0;
+  main.addEventListener('input', e => {
+    if (S.tab !== 'muziek' || !e.target.matches('.m-search input')) return;
+    M.q = e.target.value;
+    clearTimeout(mSearchT);
+    const q = M.q.trim();
+    if (!q) { M.search = null; musicDrawPage(); return; }
+    mSearchT = setTimeout(async () => { const r = await mCall('musicSearch', q); if (M.q.trim() !== q) return; M.search = Object.assign({ songs: [] }, r, { q }); musicDrawPage(); }, 300);
+  });
+  main.addEventListener('click', async e => {
+    if (S.tab !== 'muziek') return;
+    const t = e.target.closest('[data-mview],[data-mplay],[data-mmenu],[data-mclear],[data-msearch],[data-msearchclose],[data-msettings],[data-mmood],[data-mlibtab],[data-mlib],[data-mlibback],[data-mshuffle],[data-malbum],[data-malbumback],[data-mpl],[data-mplback],[data-mplnew],[data-mpldl]');
+    if (!t) return;
+    const d = t.dataset, list = mLists[d.mlist] || [];
+    if (d.malbum != null) {
+      const a = M.search && M.search.albums && M.search.albums[+d.malbum];
+      if (!a) return;
+      M.album = Object.assign({ loading: true }, a); musicDrawPage(); main.scrollTop = 0;
+      const r = await mCall('musicAlbum', a.id);
+      if (M.album && M.album.id === a.id) { M.album = r.error ? Object.assign({}, a, { error: r.error }) : r; musicDrawPage(); }
+      return;
+    }
+    if (d.malbumback != null) { M.album = null; musicDrawPage(); return; }
+    if (d.mpl) { musicOpenPlaylist(d.mpl); return; }
+    if (d.mplback != null) { M.plOpen = null; musicDrawPage(); return; }
+    if (d.mplnew != null) { musicNewPlaylist(); return; }
+    if (d.mpldl) {
+      const on = !(M.plOpen && M.plOpen.download);
+      try { MN.musicPlaylistDownload(d.mpldl, on); } catch (err) { return; }
+      if (M.plOpen) M.plOpen.download = on;
+      const p = (M.plists || []).find(x => x.id === d.mpldl); if (p) p.download = on;
+      toast(on ? 'Afspeellijst wordt gedownload' : 'Downloads van deze lijst verwijderd');
+      musicDrawPage(); return;
+    }
+    if (d.mview) { M.view = d.mview; M.searching = false; M.libOpen = null; M.plOpen = null; M.album = null; if (d.mview === 'bieb') { musicLoad('lib'); musicLoadPlaylists(); } musicDrawPage(); return; }
+    if (d.msearch != null) { M.searching = true; musicDrawPage(); return; }
+    if (d.msearchclose != null) { M.searching = false; M.q = ''; M.search = null; musicDrawPage(); return; }
+    if (d.mclear != null) { M.q = ''; M.search = null; musicDrawPage(); return; }
+    if (d.msettings != null) { musicSettings(); return; }
+    if (d.mlibtab) { M.libTab = d.mlibtab; musicDrawPage(); return; }
+    if (d.mlib) { M.libOpen = [d.mlib, d.mlibtitle || (LIB_LISTS[d.mlib] || [d.mlib])[0]]; musicDrawPage(); main.scrollTop = 0; return; }
+    if (d.mlibback != null) { M.libOpen = null; musicDrawPage(); return; }
+    if (d.mshuffle) { const l = (mLists[d.mshuffle] || []).slice().sort(() => Math.random() - 0.5); musicPlayList(l, 0); return; }
+    if (d.mmood != null) {
+      const i = +d.mmood, chips = M.home && M.home.chips;
+      if (!chips || !chips[i]) return;
+      const off = M.chip === i;
+      M.chip = off ? null : i;
+      M.home = Object.assign({}, M.home, { sections: [] });
+      musicDrawPage();
+      const r = off ? await mCall('musicHome') : await mCall('musicHomeChip', chips[i].params);
+      M.home = r.error ? r : Object.assign({}, r, { chips }); /* de chips zelf blijven staan */
+      musicDrawPage();
+      return;
+    }
+    if (d.mmenu != null) { e.stopPropagation(); const s = list[+d.mmenu]; if (s) musicMenu(s); return; }
+    if (d.mplay != null) musicPlayList(list, +d.mplay);
+  });
+  /* ---------- menu bij een nummer (drie puntjes), zoals in Metrolist ---------- */
+  function musicSheet(html, onClick) {
+    const old = sh.querySelector('.m-sheetbg'); if (old) old.remove();
+    const bg = document.createElement('div');
+    bg.className = 'm-sheetbg';
+    bg.innerHTML = `<div class="m-sheet"><i class="m-grab"></i>${html}</div>`;
+    app.appendChild(bg);
+    requestAnimationFrame(() => bg.classList.add('open'));
+    const close = () => { bg.classList.remove('open'); setTimeout(() => bg.remove(), 250); };
+    bg.addEventListener('click', e => { if (e.target === bg) return close(); const b = e.target.closest('[data-ma]'); if (b) { close(); onClick(b.dataset.ma, b); } });
+    return close;
+  }
+  function musicMenu(s) {
+    const act = (k, ic, l) => `<button class="m-act" data-ma="${k}">${MI[ic]}<span>${l}</span></button>`;
+    musicSheet(`<div class="m-row m-sheethead">${mArt(s)}<div class="m-t"><b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></div></div>
+      ${act('next', 'next2', 'Hierna afspelen')}${act('queue', 'queue', 'Aan wachtrij toevoegen')}${act('pl', 'plus', 'Aan afspeellijst toevoegen')}${act('radio', 'radio', 'Radio starten')}
+      ${act('like', 'heart', mLiked(s.id) ? 'Uit Leuk gevonden halen' : 'Leuk vinden')}${act('dl', mDled(s.id) ? 'dlOk' : 'dl', mDled(s.id) ? 'Download verwijderen' : 'Downloaden')}${act('share', 'share', 'Delen')}`, a => {
+      if (a === 'like') return musicToggleLike(s);
+      if (a === 'dl') return musicToggleDl(s);
+      if (a === 'pl') return musicAddToPlaylistSheet(s);
+      try { MN.musicSongAction(a, JSON.stringify(s)); } catch (e) { return; }
+      if (a === 'next') toast('Speelt hierna: ' + s.title);
+      if (a === 'queue') toast('Toegevoegd aan de wachtrij');
+      if (a === 'radio') { M.st = Object.assign({}, M.st || {}, { song: s, loading: true, playing: false, pos: 0 }); musicDrawBar(); toast('Radio gestart'); }
+    });
+  }
+  /* nummer aan een afspeellijst toevoegen (staat downloaden aan voor die lijst, dan wordt het nummer ook gedownload) */
+  async function musicAddToPlaylistSheet(s) {
+    if (!M.plists) { const r = await mCall('musicPlaylists'); if (!r.error) M.plists = r.playlists || []; }
+    const lists = (M.plists || []).filter(p => p.editable !== false);
+    const add = async (id, title) => {
+      const r = await mCall('musicAddToPlaylist', id, JSON.stringify(s));
+      if (r.error) return toast(r.error);
+      const p = (M.plists || []).find(x => x.id === id);
+      if (p) p.count++;
+      toast('Toegevoegd aan ' + (r.title || title) + (p && p.download ? ' (wordt gedownload)' : ''));
+      if (M.plOpen && M.plOpen.id === id) musicOpenPlaylist(id);
+    };
+    musicSheet(`<div class="setting-h m-sheettitle">Aan afspeellijst toevoegen</div>
+      <button class="m-act" data-ma="__new">${MI.plus}<span>Nieuwe afspeellijst</span></button>
+      ${lists.map(p => `<button class="m-act" data-ma="${esc(p.id)}">${MI.queue}<span>${esc(p.title)} <small class="muted">${p.count}${p.download ? ' · gedownload' : ''}</small></span></button>`).join('')}`, a => {
+      if (a === '__new') return musicNewPlaylist((id, title) => add(id, title));
+      const p = lists.find(x => x.id === a);
+      add(a, p ? p.title : '');
+    });
+  }
+  /* ---------- songtekst: tik op de hoes, of op de knop onderin de speler ---------- */
+  function parseLrc(text) {
+    const lines = [];
+    String(text || '').split(/\r?\n/).forEach(l => {
+      const m = l.match(/^\s*\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+      if (m) lines.push({ t: +m[1] * 60 + +m[2], s: m[3].replace(/<[^>]*>/g, '').trim() });
+      else if (l.trim() && !/^\s*\[[a-z]+:/i.test(l)) lines.push({ t: null, s: l.trim() });
+    });
+    return lines;
+  }
+  async function musicLoadLyrics(s) {
+    if (!s || M.lyrics[s.id]) return;
+    M.lyrics[s.id] = { loading: true };
+    const r = await mCall('musicLyrics', JSON.stringify(s));
+    M.lyrics[s.id] = r.error ? { error: r.error } : { lines: r.lyrics ? parseLrc(r.lyrics) : [] };
+    if (M.playerOpen) musicDrawPlayer();
+  }
+  function lyricsHtml(s, pos) {
+    const L = M.lyrics[s.id];
+    if (!L || L.loading) return '<div class="m-lyrics"><p class="muted">Songtekst laden…</p></div>';
+    if (L.error) return `<div class="m-lyrics"><p class="muted">${esc(L.error)}</p></div>`;
+    if (!L.lines.length) return '<div class="m-lyrics"><p class="muted">Geen songtekst gevonden voor dit nummer.</p></div>';
+    const timed = L.lines.some(l => l.t != null);
+    let cur = -1;
+    if (timed) L.lines.forEach((l, i) => { if (l.t != null && l.t <= pos + 0.3) cur = i; });
+    return `<div class="m-lyrics${timed ? ' timed' : ''}">${L.lines.map((l, i) => `<p class="${i === cur ? 'now' : i < cur ? 'past' : ''}"${l.t != null ? ` data-mlt="${l.t}"` : ''}>${esc(l.s) || '♪'}</p>`).join('')}</div>`;
+  }
+  /* terug (knop of vegen): eerst één stap terug binnen de muziek */
+  function musicBack() {
+    const sheet = sh.querySelector('.m-sheetbg');
+    if (sheet) { sheet.remove(); return true; }
+    if (M.playerOpen) { if (M.showLyrics) { M.showLyrics = false; musicDrawPlayer(); } else musicClosePlayer(); return true; }
+    const set = sh.querySelector('.m-settings');
+    if (set) { set.remove(); if (S.tab === 'muziek') musicDrawPage(); return true; }
+    if (S.tab !== 'muziek') return false;
+    if (M.album) { M.album = null; musicDrawPage(); return true; }
+    if (M.plOpen) { M.plOpen = null; musicDrawPage(); return true; }
+    if (M.libOpen) { M.libOpen = null; musicDrawPage(); return true; }
+    if (M.searching) { M.searching = false; M.q = ''; M.search = null; musicDrawPage(); return true; }
+    return false;
+  }
+  async function musicQueueSheet() {
+    const r = await mCall('musicQueue');
+    if (r.error) return toast(r.error);
+    const items = r.items || [];
+    musicSheet(`<div class="setting-h m-sheettitle">Wachtrij <span class="muted small">${items.length} nummers</span></div><div class="m-qlist">${items.map((s, i) => `<button class="m-row${i === r.index ? ' on' : ''}" data-ma="${i}">${mArt(s)}<div class="m-t"><b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></div></button>`).join('')}</div>`,
+      a => { try { MN.musicQueueJump(+a); } catch (e) {} });
+    const on = sh.querySelector('.m-qlist .m-row.on'); if (on) on.scrollIntoView({ block: 'center' });
+  }
+  /* slaaptimer (zoals in Metrolist): na een aantal minuten of na dit nummer stoppen */
+  function musicSleepSheet() {
+    const cur = (M.st && M.st.sleep) || 0;
+    const opt = (v, l) => `<button class="m-act${cur === v || (v > 0 && cur > 0 && v === 0) ? ' on' : ''}" data-ma="${v}">${MI.moon}<span>${l}</span></button>`;
+    musicSheet(`<div class="setting-h m-sheettitle">Slaaptimer ${cur > 0 ? `<span class="muted small">nog ${cur} min</span>` : cur < 0 ? '<span class="muted small">na dit nummer</span>' : ''}</div>
+      ${opt(15, '15 minuten')}${opt(30, '30 minuten')}${opt(45, '45 minuten')}${opt(60, '1 uur')}${opt(-1, 'Na dit nummer')}${cur ? opt(0, 'Uitzetten') : ''}`, a => {
+      const v = +a;
+      try { MN.musicSleep(v); } catch (e) { return; }
+      if (M.st) M.st.sleep = v;
+      toast(v === 0 ? 'Slaaptimer uit' : v < 0 ? 'Stopt na dit nummer' : 'Stopt over ' + v + ' minuten');
+      if (M.playerOpen) musicDrawPlayer();
+    });
+  }
+  async function musicToggleDl(s) {
+    const on = !mDled(s.id);
+    try { MN.musicDownload(JSON.stringify(s), on); } catch (e) { return; }
+    toast(on ? 'Downloaden: ' + s.title : 'Download verwijderd');
+    if (!M.lib) M.lib = { liked: [], downloaded: [], recent: [] };
+    M.lib.downloaded = (M.lib.downloaded || []).filter(x => x.id !== s.id); if (on) M.lib.downloaded.unshift(s);
+    if (S.tab === 'muziek') musicDrawPage();
+    if (M.playerOpen) musicDrawPlayer();
+  }
+  function musicToggleLike(s) {
+    const on = !mLiked(s.id);
+    try { MN.musicLike(JSON.stringify(s), on); } catch (e) { return; }
+    if (!M.lib) M.lib = { liked: [], downloaded: [], recent: [] };
+    M.lib.liked = (M.lib.liked || []).filter(x => x.id !== s.id); if (on) M.lib.liked.unshift(s);
+    if (on) toast('Bewaard bij Leuk gevonden');
+    musicDrawBar();
+    if (M.playerOpen) musicDrawPlayer();
+    if (S.tab === 'muziek') musicDrawPage();
+  }
+  /* ---------- instellingen: alleen wat je in W.S.P nodig hebt ---------- */
+  async function musicSettings() {
+    mStyle();
+    const p = document.createElement('div');
+    p.className = 'panel m-settings';
+    app.appendChild(p);
+    let set = null;
+    const tg = (k, title, sub) => `<label class="toggle-row" style="padding:8px 0"><span><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" data-mset="${k}"${set && set[k] ? ' checked' : ''}><i class="toggle"></i></label>`;
+    const seg = (k, opts, cur) => `<div class="m-seg">${opts.map(([v, l]) => `<button class="${cur === v ? 'on' : ''}" data-mseg="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    const draw = () => {
+      const acc = M.acc || {};
+      p.innerHTML = `<div class="panel-h"><button class="ibtn" data-mx="close" aria-label="Terug">${MI.back}</button><h2 style="margin:0;flex:1;font:800 22px var(--f-display)">Muziek</h2></div>
+        <div class="card-box"><div class="setting-h">Account</div>
+          ${acc.loggedIn ? `<div class="m-accrow"><span class="m-avatar in">${esc((acc.name || '?').trim()[0].toUpperCase())}</span><div class="m-t"><b>${esc(acc.name || 'Ingelogd')}</b><span>${esc(acc.email || 'YouTube Music')}</span></div></div>
+            <p class="small muted">Je bibliotheek, mixes en aanbevelingen komen van je eigen YouTube Music-account.</p>
+            <button class="linkbtn red" data-mx="logout">Uitloggen</button>`
+          : `<p class="small muted" style="margin:0 0 10px">Zonder account werkt alles: zoeken, afspelen en downloaden. Log in voor je eigen bibliotheek, playlists, mixes en aanbevelingen.</p>
+            <button class="btn" data-mx="login" style="width:100%">Inloggen met YouTube Music</button>`}
+        </div>
+        <div class="card-box"><div class="setting-h">Muziektab</div>
+          <div class="lbl" style="margin-bottom:6px">Opent op</div>${seg('start', [['ontdek', 'Ontdekken'], ['bieb', 'Bibliotheek']], ls.get('cp:mStart', 'ontdek'))}
+          <div class="lbl" style="margin:12px 0 6px">Bibliotheek opent op</div>${seg('libstart', [['lijsten', 'Lijsten'], ['nummers', 'Nummers'], ['albums', 'Albums'], ['artiesten', 'Artiesten']], ls.get('cp:mLibStart', 'lijsten'))}</div>
+        <div class="card-box"><div class="setting-h">Inhoud</div>
+          ${set ? `${tg('hideExplicit', 'Expliciete nummers verbergen', 'Nummers met grof taalgebruik niet laten zien')}${tg('hideVideos', "Video's verbergen", 'Alleen echte nummers, geen muziekvideo\'s')}` : '<div class="muted small">Laden…</div>'}
+        </div>
+        <div class="card-box"><div class="setting-h">Afspelen</div>
+          ${set ? `<div class="lbl" style="margin-bottom:6px">Geluidskwaliteit</div>${seg('quality', [['AUTO', 'Automatisch'], ['HIGH', 'Hoog'], ['LOW', 'Laag']], set.quality)}
+          <p class="small muted" style="margin:6px 0 4px">Automatisch: hoog op wifi, zuiniger op 4G/5G.</p>
+          ${tg('normalize', 'Volume gelijk trekken', 'Elk nummer even hard')}${tg('skipSilence', 'Stiltes overslaan', 'Stille stukken aan het begin en eind overslaan')}
+          ${tg('crossfade', 'Nummers laten overvloeien', 'Het volgende nummer begint al terwijl het vorige zachter wordt')}
+          ${tg('autoRadio', 'Doorgaan met vergelijkbare muziek', 'Is de wachtrij op, dan gaat hij verder met nummers die erop lijken')}
+          ${tg('autoLoadMore', 'Lange lijsten verder laden', 'Bij een mix of radio komen er vanzelf nummers bij')}
+          ${tg('autoSkipOnError', 'Kapot nummer overslaan', 'Lukt een nummer niet, dan meteen door naar het volgende')}
+          ${tg('persistentQueue', 'Wachtrij onthouden', 'Na het afsluiten gaat hij verder waar je was')}
+          ${tg('rememberShuffle', 'Shuffle en herhalen onthouden', '')}
+          ${tg('resumeBluetooth', 'Verder spelen bij bluetooth', 'Verbind je een koptelefoon of speaker, dan speelt hij weer verder')}
+          ${tg('stopOnClear', 'Stoppen als je de app wegveegt', 'Anders blijft de muziek spelen')}` : '<div class="muted small">Laden…</div>'}
+        </div>
+        <div class="card-box"><div class="setting-h">Downloads en opslag</div>
+          ${set ? `${tg('autoDownloadOnLike', 'Downloaden bij Leuk vinden', 'Wat je leuk vindt, staat meteen offline klaar')}
+          <p class="small muted" style="margin:6px 0 2px">Zo klein mogelijk: alleen wat je zelf downloadt blijft op je telefoon. Wat je streamt wordt niet bewaard.</p>
+          ${set.cacheMb ? `<button class="linkbtn" data-mclr="cache">Oude tijdelijke opslag wissen <span class="muted" style="font-weight:500">· ${set.cacheMb} MB</span></button>` : ''}` : ''}
+        </div>
+        <div class="card-box"><div class="setting-h">Geschiedenis</div>
+          ${set ? `${tg('history', 'Luistergeschiedenis bijhouden', 'Voor Laatst geluisterd en betere aanbevelingen')}${tg('searchHistory', 'Zoekgeschiedenis bijhouden', '')}
+          <button class="linkbtn" data-mclr="listen">Luistergeschiedenis wissen</button><button class="linkbtn" data-mclr="search">Zoekgeschiedenis wissen</button>` : ''}
+        </div>
+        <p class="small muted" style="text-align:center">Gemaakt met Metrolist · zie Meer → Over W.S.P</p>`;
+    };
+    draw();
+    p.addEventListener('click', async e => {
+      const b = e.target.closest('[data-mx],[data-mseg],[data-mclr]');
+      if (!b) return;
+      if (b.dataset.mclr) {
+        const w = b.dataset.mclr, names = { cache: 'tijdelijk bewaarde nummers', listen: 'je luistergeschiedenis', search: 'je zoekgeschiedenis' };
+        if (!await mAsk('Wissen?', { text: 'Weet je zeker dat je ' + names[w] + ' wilt wissen?', ok: 'Wissen' })) return;
+        await mCall('musicClear', w);
+        if (w === 'cache') set.cacheMb = 0;
+        if (w === 'listen' && M.lib) M.lib.recent = [];
+        toast('Gewist'); draw(); return;
+      }
+      if (b.dataset.mseg === 'libstart') { ls.set('cp:mLibStart', b.dataset.v); M.libTab = b.dataset.v; draw(); return; }
+      if (b.dataset.mx === 'close') { p.remove(); if (S.tab === 'muziek') musicDrawPage(); return; }
+      if (b.dataset.mx === 'login') { try { MN.musicLogin(); } catch (err) {} return; }
+      if (b.dataset.mx === 'logout') { await mCall('musicLogout'); M.acc = { loggedIn: false }; M.home = null; M.lib = null; draw(); musicLoad('home'); toast('Uitgelogd'); return; }
+      if (b.dataset.mseg === 'start') { ls.set('cp:mStart', b.dataset.v); M.view = b.dataset.v; draw(); return; }
+      if (b.dataset.mseg === 'quality') { set.quality = b.dataset.v; try { MN.musicSetSetting('quality', b.dataset.v); } catch (err) {} draw(); }
+    });
+    p.addEventListener('change', e => {
+      const c = e.target.closest('[data-mset]');
+      if (!c || !set) return;
+      set[c.dataset.mset] = c.checked;
+      try { MN.musicSetSetting(c.dataset.mset, String(c.checked)); } catch (err) {}
+    });
+    const [s, a] = await Promise.all([mCall('musicGetSettings'), mCall('musicAccount')]);
+    if (!s.error) set = s;
+    if (!a.error) M.acc = a;
+    if (p.isConnected) draw();
+  }
+  /* ---------- minispeler: pil met ronde hoes en voortgangsring (zoals Metrolist), op elk tabblad ---------- */
+  function musicDrawBar() {
+    let bar = sh.querySelector('.m-bar');
+    const s = mCur();
+    if (!s) { if (bar) bar.remove(); return; }
+    mStyle();
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'm-bar';
+      app.insertBefore(bar, sh.querySelector('nav.tabs'));
+      bar.addEventListener('click', e => {
+        const b = e.target.closest('[data-mc],[data-mbarlike]');
+        if (b && b.dataset.mbarlike != null) { e.stopPropagation(); const c = mCur(); if (c) musicToggleLike(c); return; }
+        if (b) { e.stopPropagation(); musicCmd(b.dataset.mc); return; }
+        musicOpenPlayer();
+      });
+    }
+    const st = M.st, pct = st.dur ? Math.min(100, st.pos / st.dur * 100) : 0;
+    bar.classList.toggle('paused', !st.playing);
+    bar.innerHTML = `<span class="m-ring" style="--p:${pct}%">${mArt(s)}</span><div class="m-t"><b>${esc(s.title)}</b><span>${st.loading ? 'Laden…' : esc(s.artist || '')}</span></div>
+      <button class="m-circ${mLiked(s.id) ? ' on' : ''}" data-mbarlike aria-label="Leuk gevonden">${MI.heart}</button>
+      <button class="m-circ play" data-mc="toggle" aria-label="Afspelen of pauzeren">${st.loading ? '<i class="m-spin"></i>' : st.playing ? MI.pause : MI.play}</button>`;
+  }
+  function musicCmd(c, arg) {
+    try { MN.musicCmd(c, arg == null ? '' : String(arg)); } catch (e) {}
+    if (c === 'toggle' && M.st) { M.st.playing = !M.st.playing; musicDrawBar(); if (M.playerOpen) musicDrawPlayer(); }
+  }
+  function musicOpenPlayer() {
+    let p = sh.querySelector('.m-player');
+    if (!p) {
+      p = document.createElement('div');
+      p.className = 'm-player';
+      app.appendChild(p);
+      p.addEventListener('click', e => {
+        const b = e.target.closest('[data-mc],[data-mx],[data-mseek]');
+        if (!b) return;
+        const s = mCur();
+        if (b.dataset.mx === 'close') return musicClosePlayer();
+        if (b.dataset.mx === 'like' && s) return musicToggleLike(s);
+        if (b.dataset.mx === 'dl' && s) return musicToggleDl(s);
+        if (b.dataset.mx === 'menu' && s) return musicMenu(s);
+        if (b.dataset.mx === 'queue') return musicQueueSheet();
+        if (b.dataset.mx === 'sleep') return musicSleepSheet();
+        if (b.dataset.mx === 'lyr') {
+          /* op een regel van de songtekst tikken = naar dat stukje springen */
+          const line = e.target.closest('[data-mlt]');
+          if (M.showLyrics && line) { const sec = +line.dataset.mlt; if (M.st) M.st.pos = sec; musicCmd('seek', Math.round(sec * 1000)); return musicDrawPlayer(); }
+          M.showLyrics = !M.showLyrics;
+          if (M.showLyrics && s) musicLoadLyrics(s);
+          return musicDrawPlayer();
+        }
+        if (b.dataset.mseek != null && M.st && M.st.dur) { const r = b.getBoundingClientRect(), sec = Math.round((e.clientX - r.left) / r.width * M.st.dur); M.st.pos = sec; musicCmd('seek', sec * 1000); return musicDrawPlayer(); }
+        if (b.dataset.mc) musicCmd(b.dataset.mc);
+      });
+    }
+    M.playerOpen = true;
+    musicDrawPlayer();
+    requestAnimationFrame(() => p.classList.add('open'));
+  }
+  function musicClosePlayer() {
+    const p = sh.querySelector('.m-player');
+    M.playerOpen = false;
+    if (p) { p.classList.remove('open'); setTimeout(() => { if (!M.playerOpen) p.remove(); }, 300); }
+  }
+  function musicDrawPlayer() {
+    const p = sh.querySelector('.m-player'), s = mCur();
+    if (!p || !s) return;
+    const st = M.st, pct = st.dur ? Math.min(100, st.pos / st.dur * 100) : 0;
+    p.innerHTML = `<div class="panel-h"><button class="ibtn" data-mx="close" aria-label="Sluiten">${MI.down}</button><span class="m-now">NU AAN HET SPELEN<b>${st.queueLen > 1 ? 'Nummer ' + ((st.index || 0) + 1) + ' van ' + st.queueLen : esc(s.album || s.artist || '')}</b></span><button class="ibtn" data-mx="menu" aria-label="Meer">${MI.more}</button></div>
+      ${M.showLyrics ? `<div class="m-cover m-lyrbox" data-mx="lyr">${lyricsHtml(s, st.pos)}</div>` : `<div class="m-cover" data-mx="lyr" title="Tik voor de songtekst">${mArt(s, 'huge')}</div>`}
+      <div class="m-ptitle"><div class="m-t"><b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></div>
+        <button class="ibtn${mLiked(s.id) ? ' m-on' : ''}" data-mx="like" aria-label="Leuk gevonden">${MI.heart}</button></div>
+      <div class="m-seek" data-mseek><div class="m-track"><i style="width:${pct}%"></i><b style="left:${pct}%"></b></div></div>
+      <div class="m-times"><span>${mFmt(st.pos)}</span><span>${st.loading ? 'laden…' : mFmt(st.dur)}</span></div>
+      <div class="m-ctrl"><button class="m-ib${st.shuffle ? ' m-on' : ''}" data-mc="shuffle" aria-label="Shuffle">${MI.shuffle}</button>
+        <button class="m-ib m-mid" data-mc="prev" aria-label="Vorige">${MI.prev}</button>
+        <button class="m-playbtn" data-mc="toggle" aria-label="Afspelen of pauzeren">${st.loading ? '<i class="m-spin"></i>' : st.playing ? MI.pause : MI.play}</button>
+        <button class="m-ib m-mid" data-mc="next" aria-label="Volgende">${MI.next}</button>
+        <button class="m-ib${st.repeat ? ' m-on' : ''}" data-mc="repeat" aria-label="Herhalen">${MI.repeat}</button></div>
+      <div class="m-pfoot"><button class="m-ib${mDled(s.id) ? ' m-on' : ''}" data-mx="dl" aria-label="Downloaden">${mDled(s.id) ? MI.dlOk : MI.dl}</button>
+        <button class="m-ib${M.showLyrics ? ' m-on' : ''}" data-mx="lyr" aria-label="Songtekst">${MI.lyrics}</button>
+        <button class="m-ib${st.sleep ? ' m-on' : ''}" data-mx="sleep" aria-label="Slaaptimer">${MI.moon}${st.sleep > 0 ? `<small class="m-sleepn">${st.sleep}</small>` : ''}</button>
+        <button class="m-ib" data-mx="queue" aria-label="Wachtrij">${MI.queue}</button></div>`;
+    /* songtekst: de regel van nu in het midden houden */
+    const now = M.showLyrics && p.querySelector('.m-lyrics p.now'), box = now && p.querySelector('.m-lyrbox');
+    if (now && box) box.scrollTop = now.offsetTop - box.clientHeight / 2 + now.offsetHeight / 2;
+  }
+  /* tijdbalk bijhouden terwijl er muziek speelt (de app stuurt niet elke seconde een seintje) */
+  setInterval(() => {
+    if (!MUSIC || !M.st || !M.st.playing || M.st.loading) return;
+    if (MN.musicState) { try { const j = MN.musicState(); if (j) { M.st = JSON.parse(j); } } catch (e) {} }
+    musicDrawBar();
+    if (M.playerOpen) musicDrawPlayer();
+  }, 1000);
+  const MUSIC_CSS = `
+  .m-page { gap: 14px; }
+  .m-pad { padding: 8px 2px; }
+  .m-top { display: flex; align-items: center; gap: 2px; margin-bottom: -2px; }
+  .m-top .m-chips { flex: 1; display: flex; gap: 8px; }
+  .m-chip { appearance: none; flex-shrink: 0; border: 1px solid var(--line); background: var(--surface); color: var(--fg2); font: 600 14px var(--f-body); padding: 8px 14px; border-radius: 10px; }
+  .app.light .m-chip { border-color: transparent; box-shadow: var(--sh-sm); }
+  .m-chip.on { background: color-mix(in srgb, var(--accent) 24%, var(--surface)); color: var(--fg); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+  .m-chiprow { display: flex; gap: 8px; overflow-x: auto; margin: 0 -20px; padding: 0 20px 2px; scrollbar-width: none; }
+  .m-chiprow::-webkit-scrollbar { display: none; }
+  .m-avatar { appearance: none; border: 0; width: 34px; height: 34px; margin-left: 4px; border-radius: 50%; background: var(--surface2); color: var(--fg2); display: inline-grid; place-items: center; font: 800 15px var(--f-display); flex-shrink: 0; }
+  .m-avatar.in { background: var(--accent); color: var(--ink); }
+  .m-avatar svg { width: 18px; height: 18px; }
+  .m-search { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 28px; padding: 0 6px; height: 52px; }
+  .app.light .m-search { border-color: transparent; box-shadow: var(--sh-sm); }
+  .m-search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font: 600 16px var(--f-body); outline: none; }
+  .m-search input::-webkit-search-cancel-button { display: none; }
+  .m-h { font: 800 20px var(--f-display); letter-spacing: -.02em; margin: 6px 2px -4px; display: flex; align-items: center; gap: 8px; }
+  .m-all { margin-left: auto; appearance: none; border: 1px solid var(--line); background: none; color: var(--fg); font: 700 12px var(--f-body); border-radius: 999px; padding: 6px 11px 6px 8px; display: inline-flex; align-items: center; gap: 4px; }
+  .m-all svg { width: 14px; height: 14px; }
+  .m-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-auto-columns: 86%; column-gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -20px; padding: 0 20px; scrollbar-width: none; }
+  .m-grid::-webkit-scrollbar { display: none; }
+  .m-grid .m-row { scroll-snap-align: start; border-bottom: 0; }
+  .m-list { padding: 8px 6px 4px 14px; }
+  .m-row { appearance: none; width: 100%; border: 0; background: none; color: var(--fg); text-align: left; display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; min-width: 0; }
+  .m-row:last-child { border-bottom: 0; }
+  .m-row:active { opacity: .7; }
+  .m-art { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; object-fit: cover; display: inline-grid; place-items: center; color: rgba(255,255,255,.9); font: 800 18px var(--f-display); background: var(--surface2); }
+  .m-art.big { width: 140px; height: 140px; border-radius: 12px; font-size: 46px; }
+  .m-art.huge { width: 100%; height: 100%; border-radius: 22px; font-size: 96px; }
+  .m-art.tilebox { width: 100%; height: auto; aspect-ratio: 1; border-radius: 10px; font-size: 38px; }
+  .m-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .m-t b { font: 700 15px var(--f-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-t span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
+  .m-row.on .m-t b { color: var(--accent-text); }
+  .m-ok svg, .m-like svg { width: 13px; height: 13px; display: block; }
+  .m-ok svg { color: var(--good); }
+  .m-like svg { color: var(--red); fill: currentColor; }
+  .m-ib { appearance: none; border: 0; background: none; color: var(--fg2); width: 40px; height: 40px; border-radius: 12px; display: inline-grid; place-items: center; flex-shrink: 0; }
+  .m-ib svg { width: 21px; height: 21px; }
+  .m-ib:active { background: var(--surface2); }
+  .m-cards { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 0 20px; scrollbar-width: none; }
+  .m-cards::-webkit-scrollbar { display: none; }
+  .m-card { appearance: none; border: 0; background: none; color: var(--fg); text-align: left; width: 140px; flex-shrink: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  .m-card b { font: 700 14px var(--f-body); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-card span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 12px; }
+  .m-tile { appearance: none; border: 0; background: none; color: var(--fg); text-align: left; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .m-tile .m-tbox { aspect-ratio: 1; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; color: var(--accent-text); }
+  .app.light .m-tile .m-tbox { border-color: transparent; box-shadow: var(--sh-sm); }
+  .m-tile .m-tbox svg { width: 44%; height: 44%; }
+  .m-tile.round .m-art { border-radius: 50%; }
+  .m-tile b { font: 700 14px var(--f-body); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-tile.round b, .m-tile.round span { text-align: center; }
+  .m-tile span { font-size: 12px; color: var(--muted); }
+  .m-subhead { display: flex; align-items: center; gap: 6px; margin-left: -8px; }
+  .m-subhead b { font: 800 20px var(--f-display); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-acts { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .m-bigplay { appearance: none; border: 0; width: 56px; height: 56px; border-radius: 18px; background: var(--accent); color: var(--ink); display: grid; place-items: center; }
+  .m-bigplay svg { width: 26px; height: 26px; }
+  .m-skel, .m-skel .m-art, .m-skel b, .m-skel span { color: transparent !important; animation: mpulse 1.2s ease-in-out infinite; }
+  .m-skel .m-art, .m-skel b, .m-skel span { background: var(--surface2); border-radius: 6px; }
+  @keyframes mpulse { 50% { opacity: .45; } }
+  .m-credit { text-align: center; margin-top: 4px; }
+  .m-bar { flex-shrink: 0; position: relative; display: flex; align-items: center; gap: 10px; margin: 0 10px 8px; padding: 5px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .app.light .m-bar { border-color: transparent; box-shadow: var(--sh); }
+  .m-ring { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; background: conic-gradient(var(--accent) var(--p), var(--surface2) 0); }
+  .m-ring .m-art { width: 44px; height: 44px; border-radius: 50%; animation: mspin 14s linear infinite; }
+  .m-bar.paused .m-ring .m-art { animation-play-state: paused; }
+  @keyframes mspin { to { transform: rotate(360deg); } }
+  .m-circ { appearance: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--fg); display: grid; place-items: center; flex-shrink: 0; }
+  .m-circ svg { width: 20px; height: 20px; }
+  .m-circ.on { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+  .m-circ.on svg { fill: currentColor; }
+  .m-circ.play { background: var(--accent); color: var(--ink); border-color: transparent; }
+  .m-spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: rot .8s linear infinite; display: block; }
+  .m-player { position: absolute; inset: 0; z-index: 46; background: var(--bg); display: flex; flex-direction: column; padding: 18px 24px 22px; gap: 12px; transform: translateY(100%); transition: transform .32s cubic-bezier(.2, .8, .2, 1); }
+  .m-player.open { transform: none; }
+  .m-now { flex: 1; text-align: center; font: 700 11px var(--f-mono); letter-spacing: .08em; color: var(--muted); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .m-now b { font: 700 13px var(--f-body); letter-spacing: 0; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-cover { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
+  .m-cover .m-art { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); box-shadow: 0 18px 40px rgb(0 0 0 / .25); }
+  .m-ptitle { display: flex; align-items: center; gap: 12px; }
+  .m-ptitle .m-t b { font: 800 24px/1.15 var(--f-display); letter-spacing: -.02em; }
+  .m-ptitle .m-t span { font-size: 15px; }
+  .ibtn.m-on, .m-ib.m-on { color: var(--accent-text); }
+  .ibtn.m-on svg { fill: currentColor; }
+  .m-seek { padding: 10px 0; cursor: pointer; }
+  .m-track { position: relative; height: 5px; border-radius: 3px; background: var(--surface2); }
+  .m-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--accent); }
+  .m-track b { position: absolute; top: 50%; width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; border-radius: 50%; background: var(--accent); }
+  .m-times { display: flex; justify-content: space-between; font: 600 12px var(--f-mono); color: var(--muted); margin-top: -6px; }
+  .m-ctrl { display: flex; align-items: center; justify-content: space-between; }
+  .m-ctrl .m-mid svg { width: 28px; height: 28px; }
+  .m-ctrl .m-ib { color: var(--fg); }
+  .m-ctrl .m-ib.m-on { color: var(--accent-text); }
+  .m-playbtn { appearance: none; border: 0; width: 72px; height: 72px; border-radius: 24px; background: var(--accent); color: var(--ink); display: grid; place-items: center; }
+  .m-playbtn svg { width: 32px; height: 32px; }
+  .m-playbtn:active { transform: scale(.95); }
+  .m-pfoot { display: flex; justify-content: space-around; }
+  .m-cover[data-mx] { cursor: pointer; }
+  .m-ask { padding: 2px 14px 4px; display: flex; flex-direction: column; gap: 10px; }
+  .m-ask .setting-h { margin: 0; }
+  .m-ask p { margin: -4px 0 0; }
+  .m-askin { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 12px; padding: 13px 14px; font: 600 16px var(--f-body); outline: none; }
+  .m-askin:focus { border-color: var(--accent); }
+  .m-askbtns { display: flex; gap: 10px; }
+  .m-askbtns .btn { flex: 1; }
+  .m-settings ~ .m-sheetbg, .m-sheetbg { z-index: 60; }
+  .m-lyrbox { display: block; overflow-y: auto; scroll-behavior: smooth; padding: 30% 4px; mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
+  .m-lyrics p { margin: 0 0 14px; font: 800 22px/1.3 var(--f-display); letter-spacing: -.01em; color: var(--fg); }
+  .m-lyrics.timed p { color: var(--muted); transition: color .3s; }
+  .m-lyrics.timed p.past { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+  .m-lyrics.timed p.now { color: var(--accent-text); }
+  .m-lyrics p.muted { font: 600 15px var(--f-body); color: var(--muted); text-align: center; }
+  .m-collhead { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; margin-top: -6px; }
+  .m-collhead .m-art.cover { width: 190px; height: 190px; border-radius: 16px; font-size: 64px; box-shadow: 0 12px 30px rgb(0 0 0 / .2); margin-bottom: 8px; }
+  .m-collhead .m-tboxart svg { width: 40%; height: 40%; color: var(--accent-text); }
+  .m-collhead b { font: 800 22px var(--f-display); letter-spacing: -.02em; }
+  .m-collhead span { font-size: 13px; color: var(--muted); }
+  .m-dltoggle { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 700 13px var(--f-body); border-radius: 999px; padding: 9px 14px; display: inline-flex; align-items: center; gap: 6px; }
+  .m-dltoggle svg { width: 16px; height: 16px; }
+  .m-dltoggle.on { background: color-mix(in srgb, var(--good) 18%, var(--surface)); color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+  .m-dlnote { text-align: center; margin: -6px 0 0; }
+  .m-collage { display: grid !important; grid-template-columns: 1fr 1fr; overflow: hidden; padding: 0; }
+  .m-collage img, .m-tboximg { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .m-tile .m-tbox { overflow: hidden; }
+  .m-tile .m-new svg { color: var(--fg2); }
+  .m-pfoot .m-ib { position: relative; }
+  .m-sleepn { position: absolute; right: 2px; top: 2px; font: 700 10px var(--f-mono); color: var(--accent-text); }
+  .m-sheetbg { position: absolute; inset: 0; z-index: 60; background: rgb(0 0 0 / 0); transition: background .25s; display: flex; align-items: flex-end; }
+  .m-sheetbg.open { background: rgb(0 0 0 / .45); }
+  .m-sheet { width: 100%; max-height: 80%; overflow-y: auto; background: var(--surface); border-radius: 24px 24px 0 0; padding: 8px 8px 22px; transform: translateY(100%); transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+  .m-sheetbg.open .m-sheet { transform: none; }
+  .m-grab { display: block; width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 10px; }
+  .m-sheethead { padding: 4px 12px 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; cursor: default; }
+  .m-sheettitle { padding: 2px 12px 6px; }
+  .m-qlist .m-row { padding: 7px 12px; }
+  .m-act { appearance: none; width: 100%; border: 0; background: none; color: var(--fg); display: flex; align-items: center; gap: 16px; padding: 13px 16px; border-radius: 12px; font: 600 15px var(--f-body); text-align: left; }
+  .m-act:active { background: var(--surface2); }
+  .m-act svg { width: 22px; height: 22px; color: var(--fg2); }
+  .m-settings { z-index: 50; }
+  .m-accrow { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .m-accrow .m-avatar { width: 44px; height: 44px; font-size: 19px; margin: 0; }
+  .m-seg { display: flex; gap: 6px; background: var(--surface2); border-radius: 12px; padding: 4px; }
+  .m-seg button { flex: 1; appearance: none; border: 0; background: none; color: var(--muted); font: 700 13px var(--f-body); padding: 9px 0; border-radius: 9px; }
+  .m-seg button.on { background: var(--accent); color: var(--ink); }
+  `;
+
+  /* welke tabbladen je eerder open had: de terugknop gaat daar stap voor stap naartoe terug */
+  const tabHist = [];
+  function go(tab, back) {
     if (tab === 'packs') tab = 'cijfers'; /* oude naam (meldingen): nieuwe cijfers staan nu bij Cijfers */
+    /* elk tabblad maar één keer in de lijst (het laatst bezochte achteraan), zodat terug niet heen en weer blijft springen */
+    if (!back && S.tab && S.tab !== tab) {
+      const i = tabHist.indexOf(S.tab);
+      if (i >= 0) tabHist.splice(i, 1);
+      tabHist.push(S.tab);
+    }
+    if (!back) { const j = tabHist.indexOf(tab); if (j >= 0) tabHist.splice(j, 1); }
     app.classList.remove('immersive');
     if (tab === 'cijfers') S.ovPeriod = null; /* Cijfers opent altijd op de huidige periode */
     /* schuifovergang: het oude scherm schuift weg, het nieuwe komt van de kant van het tabblad binnen */
@@ -1803,7 +2551,7 @@
   }
   function render() {
     updateNav();
-    const f = { cijfers: renderGrades, huiswerk: renderHomework, rooster: renderRooster, meer: renderMore }[S.tab];
+    const f = { cijfers: renderGrades, huiswerk: renderHomework, rooster: renderRooster, meer: renderMore, muziek: renderMusic }[S.tab];
     f();
     const t = S.tab;
   }
@@ -2990,7 +3738,7 @@
   const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit'], ['zwart', 'Goud op zwart'], ['default', 'Goud op wit']];
   const curIcon = () => { try { return Native && Native.getIcon ? Native.getIcon() : ls.get('cp:icon', 'zwartkaal'); } catch (e) { return 'zwartkaal'; } };
   const shownIcon = curIcon;
-  const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET('icon-' + (k === 'default' ? 'wit' : k) + '.png')}" alt=""><span>${l}</span></button>`).join('')}</div>`;
+  const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET(logoFile('icon-' + (k === 'default' ? 'wit' : k) + '.png'))}" alt=""><span>${l}</span></button>`).join('')}</div>`;
   function setIcon(k) {
     ls.set('cp:icon', k);
     try { if (Native && Native.setIcon) Native.setIcon(k === 'default' ? 'Default' : k.charAt(0).toUpperCase() + k.slice(1)); } catch (e) {}
@@ -3374,14 +4122,18 @@
     app.appendChild(p);
   }
   /* ---------- voorwaarden: bij de eerste start akkoord geven ---------- */
-  const TERMS_VERSION = 4; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account; 4: nieuwe naam W.S.P, inlogpagina zonder schoollogo, iPhone */
+  const TERMS_VERSION = MUSIC ? 5 : 4; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account; 4: nieuwe naam W.S.P, inlogpagina zonder schoollogo, iPhone; 5: Music Edition (muziek via YouTube Music, Metrolist) */
   function showTerms(viewOnly) {
     const el = document.createElement('div');
     el.className = 'terms';
-    el.innerHTML = `<div class="logos"><img src="${ASSET('mark.png')}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+    el.innerHTML = `<div class="logos"><img src="${ASSET(logoFile('mark.png'))}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
       <h2>${viewOnly ? 'Voorwaarden en privacy' : 'Voordat je begint'}</h2>
+      ${MUSIC ? '<p class="small" style="margin:-4px 0 0"><span class="tag">MUSIC EDITION</span> W.S.P met een eigen muziekspeler</p>' : ''}
       <ul>
-        <li><b>Onofficiële app.</b> W.S.P is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens je school of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
+        <li><b>Onofficiële app.</b> W.S.P${MUSIC ? ' Music Edition' : ''} is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens je school${MUSIC ? ', Zermelo of YouTube' : ' of Zermelo'}, en zij zijn er niet verantwoordelijk voor.</li>
+        ${MUSIC ? `<li><b>Muziek.</b> De muziekspeler zoekt en speelt muziek van YouTube Music, rechtstreeks vanaf deze telefoon. Er zit geen account bij YouTube of Google voor nodig. De app is niet van, en niet goedgekeurd door, YouTube of Google; de muziek is van de artiesten en hun platenmaatschappijen. Gebruik hem voor jezelf en houd je aan de regels van YouTube.</li>
+        <li><b>Downloads en wat je luistert.</b> Gedownloade nummers, wat je leuk vindt en wat je laatst hebt geluisterd worden alleen in de app op deze telefoon bewaard, niet ergens anders heen gestuurd. Gedownloade nummers kun je alleen in W.S.P afspelen. Verwijder je de app, dan zijn ze weg.</li>
+        <li><b>Gemaakt met Metrolist.</b> De muziekspeler gebruikt de open-source code van Metrolist (GPL-3.0), gebaseerd op InnerTune en OuterTune. Daarom is ook W.S.P Music Edition open source onder GPL-3.0. Zie Meer → Over W.S.P.</li>` : ''}
         <li><b>Namen en logo's.</b> De naam van je school en de naam en het logo van Zermelo zijn van hun eigenaren. Ze staan in de app alleen om te laten zien waar de gegevens vandaan komen. Als de school of Zermelo dat niet wil, worden ze weggehaald.</li>
         <li><b>Inloggen</b> gaat via de gewone inlog van school (Microsoft) en Zermelo. De app ziet en bewaart je wachtwoord niet. Om je ingelogd te houden bewaart hij alleen de inlogcookies van het portaal (tot 30 dagen, bij elk gebruik verlengd) en de Zermelo-sleutel, in de afgeschermde opslag van de app op je telefoon. Andere apps kunnen daar niet bij. Uitloggen wist ze. Op de inlogpagina verbergt de app alleen het logo van school en zet hij een algemene voorbeeldtekst in het e-mailveld; wat je typt, leest hij niet.</li>
         ${IOS ? `<li><b>Installeren op iPhone</b> gaat met SideStore en je eigen Apple ID. Met een gratis Apple ID werkt de app 7 dagen per keer; SideStore vernieuwt hem (zie Meer → Automatisch vernieuwen). W.S.P staat niet in de App Store en is niet door Apple gecontroleerd.</li>` : ''}
@@ -3655,7 +4407,8 @@
      zonder code krijg je altijd gewone versies, ook als de schakelaar van een eerdere keer nog aan staat */
   const canaryOn = () => !!(S.devOn && ls.get('cp:canary', false));
   const appVer = () => { try { return Native && Native.appVersion ? Native.appVersion() : ''; } catch (e) { return ''; } };
-  const canUpdate = () => !!(Native && Native.installUpdate && appVer());
+  /* de Music Edition werkt (nog) niet zichzelf bij: de releases op GitHub zijn van de gewone W.S.P */
+  const canUpdate = () => !MUSIC && !!(Native && Native.installUpdate && appVer());
   /* via Android (het portaal kan verzoeken naar andere sites tegenhouden); in de preview gewoon met fetch */
   /* één vraag tegelijk (Android antwoordt via één callback). Vraag je iets voor een ander kanaal (canary/gewoon)
      terwijl er nog een loopt, dan eerst die afwachten en daarna een nieuwe vraag */
@@ -4225,9 +4978,17 @@
           <button class="linkbtn" data-a="portal">Portaal openen in browser</button>
           <button class="linkbtn red" data-a="logout">Uitloggen</button>
         </div>
-        <div class="card-box"><div class="setting-h">Over W.S.P</div>
-          <div class="logos"><img src="${ASSET('mark.png')}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
-          <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens je school of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
+        <div class="card-box"><div class="setting-h">Over W.S.P${MUSIC ? ' <span class="tag">MUSIC EDITION</span>' : ''}</div>
+          <div class="logos"><img src="${ASSET(logoFile('mark.png'))}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+          <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens je school${MUSIC ? ', Zermelo of YouTube' : ' of Zermelo'}. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
+          ${MUSIC ? `<div class="setting-h" style="margin-top:14px">Gemaakt door en met</div>
+          <div class="listrow"><span class="muted">W.S.P en Music Edition</span><b>gemaakt door een leerling</b></div>
+          <div class="listrow"><span class="muted">Muziekspeler</span><b>met Metrolist</b></div>
+          <div class="listrow"><span class="muted">Metrolist</span><b>Mo Agamy en bijdragers</b></div>
+          <div class="listrow"><span class="muted">Gebaseerd op</span><b>InnerTune · OuterTune</b></div>
+          <div class="listrow"><span class="muted">Muziek</span><b>via YouTube Music</b></div>
+          <div class="listrow"><span class="muted">Licentie</span><b>GPL-3.0 (open source)</b></div>
+          <p class="small muted" style="margin-top:8px">Dank aan iedereen die aan Metrolist, InnerTune en OuterTune heeft gewerkt. W.S.P is niet verbonden aan YouTube, Google of Metrolist Group.</p>` : ''}
           ${canUpdate() ? `<button class="linkbtn" data-a="upd">Zoek naar updates <span class="muted" style="font-weight:500">· je hebt versie ${esc(appVer())}</span></button>` : ''}
           <button class="linkbtn" data-a="terms" style="border-bottom:0;padding-bottom:0">Voorwaarden en privacy bekijken</button>
         </div>
@@ -4334,6 +5095,7 @@
 
   /* ---------- terugknop (Android) ---------- */
   window.__cpBack = function () {
+    if (MUSIC && musicBack()) return true; /* muziek: eerst één stap terug binnen de muziektab */
     const tm = sh.querySelector('.terms');
     if (tm) { if (ls.get('cp:terms', 0) === TERMS_VERSION) { tm.remove(); return true; } return false; }
     const pn = sh.querySelector('.panel');
@@ -4342,7 +5104,13 @@
     if (ov) { const nx = ov.querySelector('.ub-next:not([hidden])'); if (nx) nx.click(); return true; }
     const m = sh.querySelector('.modal');
     if (m) { m.remove(); return true; }
-    if (S.tab !== 'rooster') { go('rooster'); return true; }
+    /* een stap terug: het tabblad van hiervoor (dat er nog moet zijn); is er geen, dan eerst naar het rooster */
+    const vis = visibleTabs();
+    while (tabHist.length) {
+      const prev = tabHist.pop();
+      if (prev !== S.tab && vis.includes(prev)) { go(prev, true); return true; }
+    }
+    if (S.tab !== 'rooster' && vis.includes('rooster')) { go('rooster', true); return true; }
     return false;
   };
 
