@@ -10,18 +10,12 @@
   if (window.__cpApp) { window.__cpApp.refresh(); return; }
 
   const Native = window.CijferApp || (DEMO && DEMO.native) || null;
-  /* Music Edition: alleen als de app een muziekkoppeling heeft (de gewone W.S.P heeft die niet en blijft hetzelfde) */
-  const MN = window.CijferMusic || Native; /* in de Music Edition-app een aparte koppeling, in de preview de voorbeelddata */
-  const MUSIC = !!(MN && MN.musicSearch);
-  /* logo's: de Music Edition heeft de C.R.H met de noot-H (music-mark.png, music-icon-*.png; niet "mark-..."/"icon-...",
-     want make-icons.ps1 van de gewone W.S.P gooit die weg en maakt ze opnieuw) */
-  function logoFile(n) { return MUSIC ? 'music-' + n : n; }
   /* plaatjes en lettertypes uit de app zelf; de iPhone-app kan /__ichthusplus/ niet onderscheppen en geeft ze als data-URL mee */
   const ASSETS = window.__cpAssets || null;
   const assetUrl = p => (ASSETS && ASSETS[p]) || (DEMO ? '/app/assets/' : '/__ichthusplus/') + p;
   /* iPhone-app: andere uitleg voor de widget, geen "trillen" */
   const IOS = window.__cpPlatform === 'ios';
-  const IOS_WIDGET = '<p class="small"><b>Zo zet je hem neer:</b> houd een leeg plekje op je beginscherm ingedrukt → tik linksboven op <b>+</b> (of <b>Wijzig</b> → <b>Voeg widget toe</b>) → zoek <b>W.S.P</b> → kies een maat → <b>Voeg widget toe</b>. Ook op je toegangsscherm kan hij erbij.</p>';
+  const IOS_WIDGET = '<p class="small"><b>Zo zet je hem neer:</b> houd een leeg plekje op je beginscherm ingedrukt → tik linksboven op <b>+</b> (of <b>Wijzig</b> → <b>Voeg widget toe</b>) → zoek <b>C.R.H</b> → kies een maat → <b>Voeg widget toe</b>. Ook op je toegangsscherm kan hij erbij.</p>';
 
   /* ---------- opslag ---------- */
   const ls = {
@@ -119,18 +113,19 @@
       if (navigator.onLine !== false) {
         try {
           const r2 = await fetch(url, { credentials: 'same-origin', cache: 'no-store', redirect: 'manual' });
-          if (r2.type === 'opaqueredirect') throw new Error('login');
+          if (r2.type === 'opaqueredirect') throw loggedOut();
         } catch (e2) { if (e2 && e2.message === 'login') throw e2; }
       }
       throw offline();
     }
     /* alleen een doorverwijzing naar de inlogpagina (ander adres) betekent echt uitgelogd */
-    if (new URL(r.url).hostname !== HOST) throw new Error('login');
-    if (!r.ok) throw r.status === 401 || r.status === 403 ? new Error('login') : offline();
+    if (new URL(r.url).hostname !== HOST) throw loggedOut();
+    if (!r.ok) throw r.status === 401 || r.status === 403 ? loggedOut() : offline();
+    S.schoolOut = false; /* het portaal antwoordt weer gewoon: niet (meer) uitgelogd */
     syncClock(r);
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
     if (mustHave && !doc.querySelector(mustHave)) {
-      if (!doc.querySelector('.wp3-portal-main, .main-content')) throw new Error('login');
+      if (!doc.querySelector('.wp3-portal-main, .main-content')) throw loggedOut();
       throw new Error('Deze pagina van het portaal ziet er anders uit dan verwacht.');
     }
     return doc;
@@ -470,17 +465,34 @@
     app.appendChild(m);
   }
 
+  /* nog niet bekeken nieuw huiswerk: { id: maandag van de week (ms) }. Oude opslag (een lijst zonder week) is niet
+     meer terug te vinden, die vervalt. Huiswerk van weken die al voorbij zijn telt niet meer mee */
+  function hwPending() {
+    const v = ls.get('cp:hwNew', null), out = {}, cur = mondayOf(now()).getTime();
+    if (v && typeof v === 'object' && !Array.isArray(v)) Object.keys(v).forEach(id => { if (typeof v[id] === 'number' && v[id] >= cur) out[id] = v[id]; });
+    return out;
+  }
+  function setHwPending(p) {
+    const ks = Object.keys(p);
+    ks.slice(0, Math.max(0, ks.length - 50)).forEach(k => { delete p[k]; });
+    ls.set('cp:hwNew', p);
+  }
   /* onthoudt per huiswerkitem de tekst, zodat nieuwe items en nieuwe aantekeningen een label krijgen */
   async function loadHomework(monday) {
     const items = DEMO ? DEMO.homework(monday) : await loadHomeworkRaw(monday);
+    if (items.unsure) return items; /* geen tabel gekregen: niets onthouden of als gezien markeren */
     const seen = ls.get('cp:hwseen', null);
     const next = seen || {};
-    /* nieuw of aangepast: onthouden voor het rode getalletje bij Huiswerk, tot je het tabblad bekijkt */
-    const pending = new Set(ls.get('cp:hwNew', []) || []);
+    /* nieuw of aangepast: onthouden voor het rode getalletje bij Huiswerk (per item in welke week het staat), tot je
+       die week bekijkt. Staat het er bij opnieuw ophalen niet meer (weggehaald of aangepast door de docent), dan telt
+       het ook niet meer mee; anders bleef het getalletje staan zonder dat je het ergens kon vinden */
+    const wk = monday.getTime(), pending = hwPending();
+    const here = new Set(items.map(it => it.id));
+    Object.keys(pending).forEach(id => { if (pending[id] === wk && !here.has(id)) delete pending[id]; });
     items.forEach(it => {
       if (seen) it.badge = !(it.id in seen) ? 'NIEUW' : seen[it.id] !== it.huiswerk ? 'AANGEPAST' : '';
-      if (!it.badge && pending.has(it.id)) it.badge = 'NIEUW'; /* nog niet bekeken: label blijft staan */
-      if (it.badge) pending.add(it.id);
+      if (!it.badge && it.id in pending) it.badge = 'NIEUW'; /* nog niet bekeken: label blijft staan */
+      if (it.badge) pending[it.id] = wk;
       if (it.id in next) delete next[it.id]; /* opnieuw achteraan, zodat de oudste bovenaan staan */
       next[it.id] = it.huiswerk;
     });
@@ -488,16 +500,27 @@
     const ks = Object.keys(next);
     if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(k => { delete next[k]; });
     ls.set('cp:hwseen', next);
-    ls.set('cp:hwNew', [...pending].slice(-50));
+    setHwPending(pending);
     /* de herinneringen op Android kennen zo meteen het nieuwste huiswerk */
     try {
       if (Native && Native.setHwItems) Native.setHwItems(JSON.stringify(items.filter(it => it.date).map(it => ({ id: it.id, vak: it.vak, ond: it.onderwerp, date: it.date, toets: !!it.toets, gemaakt: !!it.gemaakt }))));
     } catch (e) {}
     return items;
   }
-  async function loadHomeworkRaw(monday) {
+  async function loadHomeworkRaw(monday, tries = 0) {
     const doc = await fetchDoc(P_HUISWERK + '?startdate=' + fmt(monday) + '&done=all', '.som_huiswerk');
     const table = doc.querySelector('.som_huiswerk table.wp3-portlet-table-data');
+    /* net opgestart (verse sessie): het portaal stuurt het huiswerk-blok soms nog zonder tabel; de inhoud komt pas bij
+       een volgende keer. Eén keer kort opnieuw proberen. Komt er dan nog geen tabel, dan is het een lege week (bijv.
+       vakantie), maar "onzeker": niet bewaren en snel opnieuw kijken (zie refreshWeek), zodat er nooit lang een lege week
+       blijft staan die eigenlijk wel huiswerk had */
+    if (!table) {
+      const txt = clean((doc.querySelector('.som_huiswerk') || {}).textContent || '');
+      if (!/geen\s+(huiswerk|gegevens|resultaten|items|opdrachten)/i.test(txt)) {
+        if (tries < 1) { await new Promise(r => setTimeout(r, 800)); return loadHomeworkRaw(monday, tries + 1); }
+        return Object.assign([], { unsure: true });
+      }
+    }
     const items = [];
     if (table) {
       const heads = [...table.querySelectorAll('thead th')].map(th => clean(th.textContent).toLowerCase());
@@ -550,11 +573,17 @@
   /* inloggen via je schoolaccount: de app opent Zermelo zoals de link op het portaal dat doet */
   async function zmSsoUrl() {
     let u = ls.get('cp:zmurl2', null);
-    if (u) return u;
+    try { if (u && /^[a-z0-9-]+\.zportal\.nl$/i.test(new URL(u).hostname) && u.startsWith('https://')) return u; } catch (e) {}
+    u = null;
     try {
       const doc = await fetchDoc('/portaal/home');
-      const a = doc.querySelector('a[href*="zportal.nl"]');
-      if (a) u = new URL(a.getAttribute('href'), location.origin).href;
+      /* alleen een echte Zermelo-link (https, adres eindigt op .zportal.nl); niet elke link waar "zportal.nl" ergens in staat */
+      for (const a of doc.querySelectorAll('a[href*="zportal.nl"]')) {
+        try {
+          const x = new URL(a.getAttribute('href'), location.origin);
+          if (x.protocol === 'https:' && /^[a-z0-9-]+\.zportal\.nl$/i.test(x.hostname)) { u = x.href; break; }
+        } catch (e) {}
+      }
     } catch (e) {}
     u = u || 'https://ichthus.zportal.nl/';
     ls.set('cp:zmurl2', u);
@@ -566,6 +595,8 @@
   }
   window.__cpZmLinked = (school, token, mode) => {
     zm = { school, token, sso: mode === 'sso' };
+    S.zmNeedLogin = false; S.zmLoginAsked = false; /* verloopt het later weer, dan opnieuw netjes vragen */
+    zmDir = null; /* nieuwe koppeling (misschien een andere school): zoeklijst opnieuw ophalen */
     ls.set('cp:zermelo', zm);
     S.rooster = {}; S.fresh = {}; try { localStorage.removeItem('cp:wk:r'); } catch (e) {}
     S.rDay = null;
@@ -577,10 +608,18 @@
     S.zmRenewing = false;
     const e = sh.querySelector('.modal.zm .zerr');
     if (e) { e.innerHTML = errBox(msg); return; }
-    if (zm && zm.sso) { zermeloUnlink(); S.rooster = {}; S.fresh = {}; try { localStorage.removeItem('cp:wk:r'); } catch (e) {} if (S.tab === 'rooster') renderRooster(); }
+    /* stil opnieuw inloggen bij Zermelo lukte niet (meestal: ook de login bij school is verlopen). De koppeling NIET
+       weghalen: je ziet het laatst opgehaalde rooster, en na opnieuw inloggen bij school werkt Zermelo vanzelf weer */
+    if (zm) {
+      const again = S.zmLoginAsked; /* al eens gevraagd: dit was dus jouw eigen inlogpoging */
+      S.zmNeedLogin = true; promptZermelo();
+      if (again) toast('Inloggen bij Zermelo lukte niet. Tik op het vakje bovenaan je rooster om het opnieuw te proberen.');
+      if (S.tab === 'rooster' && !sh.querySelector('.modal, .panel, .ov')) { S.rooster = {}; renderRooster(); }
+    }
   };
   function zermeloUnlink() {
     zm = null;
+    zmDir = null; /* zoeklijst hoorde bij deze koppeling */
     ls.set('cp:zermelo', null);
     if (Native && Native.setZermelo) Native.setZermelo('', '');
   }
@@ -605,7 +644,7 @@
         const html = days.map(d => {
           const ls2 = d.lessons.filter(l => l.vak);
           return `<div class="day-h">${esc(niceDay(new Date(d.date)))}</div>` + (ls2.length ? ls2.map(l => `<div class="card-box les${l.uitval ? ' vervallen' : ''}">
-            <div class="uur"><b>${esc(l.uur || '–')}</b><span>${esc((l.tijd || '').split('-')[0].trim())}</span></div>
+            <div class="uur"><b>${esc(l.uur || '–')}</b></div>
             <div class="wat"><b>${esc(vakName(l.vak))} ${l.uitval ? '<span class="tag red">UITVAL</span>' : ''}</b><span>${esc(lesTijd(l.tijd))}${l.docent ? ' · ' + esc(l.docent) : ''}</span></div>
             <div class="lok">${esc(l.lokaal || '–')}</div></div>`).join('') : `<div class="free small-free"><b>Vrij</b></div>`);
         }).join('');
@@ -615,22 +654,95 @@
     draw();
     app.appendChild(p);
   }
+  /* zoeklijst voor "rooster van iemand anders", zoals Alle roosters in Zermelo: leerlingen (nummer + klas) en docenten
+     (code + naam). Alleen in het geheugen: gegevens van anderen bewaren we niet */
+  /* de belofte zelf bewaren: tegelijk zoeken haalt de lijst maar één keer op; mislukt het, dan de volgende keer opnieuw */
+  let zmDir = null;
+  function zmDirectory() {
+    if (!zmDir) zmDir = loadZmDirectory().catch(e => { zmDir = null; throw e; });
+    return zmDir;
+  }
+  async function loadZmDirectory() {
+    if (DEMO) {
+      const students = [];
+      ['h2b', 'h2c', 'h3b', 'h3c'].forEach((k, i) => { for (let n = 0; n < 9; n++) students.push({ nr: String(140100 + i * 50 + n * 3), klas: k }); });
+      const list = (DEMO.docenten && DEMO.docenten.list) || {};
+      return { students, teachers: Object.keys(list).map(c => ({ code: c, name: list[c].name })) };
+    }
+    const get = async p => {
+      const r = await fetch(zmBase() + p + '&access_token=' + encodeURIComponent(zm.token));
+      if (r.status === 401 || r.status === 403) throw new Error('Je school staat niet toe dat je deze lijst bekijkt.');
+      if (!r.ok) throw new Error('Zermelo gaf een fout (' + r.status + ').');
+      return ((await r.json()).response || {}).data || [];
+    };
+    /* het schooljaar van nu (vanaf augustus het nieuwe) */
+    const t = now(), year = t.getMonth() >= 7 ? t.getFullYear() : t.getFullYear() - 1;
+    const ids = (await get('/schoolsinschoolyears?archived=false&fields=id,year')).filter(s => s.year === year).map(s => s.id);
+    if (!ids.length) throw new Error('Geen schooljaar gevonden in Zermelo.');
+    /* alleen je eigen school (zoals Zermelo zelf): de school waar jouw leerlingnummer bij staat */
+    const me = String(await zmMyCode()).toLowerCase();
+    let own = null, st = null;
+    for (const id of ids) {
+      const list = await get('/studentsindepartments?schoolInSchoolYear=' + id + '&fields=student,mainGroupName');
+      if (list.some(s => String(s.student).toLowerCase() === me)) { own = id; st = list; break; }
+    }
+    if (!own) throw new Error('Je eigen school kon niet worden gevonden in Zermelo.');
+    const co = await get('/contracts?schoolInSchoolYear=' + own + '&fields=employee,prefix,lastName');
+    const students = new Map(), teachers = new Map();
+    st.forEach(s => { if (s.student && s.mainGroupName) students.set(String(s.student), { nr: String(s.student), klas: String(s.mainGroupName).toLowerCase() }); });
+    co.forEach(c => { if (c.employee) teachers.set(String(c.employee).toLowerCase(), { code: String(c.employee).toLowerCase(), name: [c.prefix, c.lastName].filter(Boolean).join(' ') || String(c.employee).toUpperCase() }); });
+    return { students: [...students.values()], teachers: [...teachers.values()] };
+  }
+  /* je eigen leerlingnummer in Zermelo (voor het live-rooster); per koppeling één keer opvragen */
+  let zmMe = null;
+  async function zmMyCode() {
+    const key = zm.school + '|' + String(zm.token).slice(-6);
+    if (zmMe && zmMe.key === key) return zmMe.code;
+    const r = await fetch(zmBase() + '/users/~me?fields=code&access_token=' + encodeURIComponent(zm.token));
+    if (!r.ok) return '';
+    const code = String(((((await r.json()).response || {}).data || [])[0] || {}).code || '');
+    zmMe = { key, code };
+    return code;
+  }
+  /* uitval uit het live-rooster van Zermelo die niet bij je eigen afspraken staat: een vakje met precies één les die
+     vervalt (zo laat Zermelo zelf ook "uitval" zien). Bij een echt keuze-uur (meer lessen om uit te kiezen) niets */
+  let zmLiveOff = false; /* school staat het live-rooster niet toe: niet elke week opnieuw proberen */
+  async function zmCancelledExtra(monday) {
+    if (zmLiveOff || !zm) return [];
+    const me = await zmMyCode();
+    if (!me) return [];
+    const wk = addDays(monday, 3).getFullYear() + String(isoWeek(monday)).padStart(2, '0');
+    const r = await fetch(zmBase() + '/liveschedule?student=' + encodeURIComponent(me) + '&week=' + wk + '&fields=appointments&access_token=' + encodeURIComponent(zm.token));
+    if (r.status === 403 || r.status === 404) zmLiveOff = true;
+    if (!r.ok) return [];
+    const week = ((((await r.json()).response || {}).data || [])[0] || {}).appointments || [];
+    return week.filter(s => s.cancelled && !(s.subjects || []).length && (s.actions || []).length === 1)
+      .map(s => s.actions[0].appointment)
+      .filter(a => a && a.cancelled && (a.subjects || []).length)
+      .map(a => Object.assign({}, a, { type: a.appointmentType || 'lesson', valid: true }));
+  }
   /* user: ~me (jezelf) of de leerlingcode van iemand anders (als je school dat toestaat) */
   async function loadZermelo(monday, user = '~me') {
     const start = Math.floor(monday.getTime() / 1000), end = Math.floor(addDays(monday, 7).getTime() / 1000);
     /* zonder valid=true: dan komen ook de oude versies van gewijzigde lessen mee (valid: false), zodat we bij een
        lokaalwijziging kunnen laten zien waar het eerst was. Die oude versies tonen we verder niet */
+    /* tegelijk ophalen: uitval die niet bij je eigen afspraken staat (zie zmCancelledExtra) */
+    /* alleen voor deze week en later: een week die voorbij is verandert niet meer (scheelt een aanvraag per oude week) */
+    const extraP = user === '~me' && addDays(monday, 7).getTime() > now().getTime() ? zmCancelledExtra(monday).catch(() => []) : Promise.resolve([]);
     const r = await fetch(zmBase() + '/appointments?user=' + encodeURIComponent(user) + '&start=' + start + '&end=' + end + '&access_token=' + encodeURIComponent(zm.token));
     /* rooster van iemand anders: geen toegang betekent niet dat jouw koppeling verlopen is */
-    if (user !== '~me' && (r.status === 403 || r.status === 404)) throw new Error(r.status === 404 ? 'Deze leerling is niet gevonden.' : 'Je school staat niet toe dat je dit rooster bekijkt.');
+    if (user !== '~me' && (r.status === 403 || r.status === 404)) throw new Error(r.status === 404 ? 'Dit rooster is niet gevonden.' : 'Je school staat niet toe dat je dit rooster bekijkt.');
     if (r.status === 401 || r.status === 403) {
       if (zm.sso && Native && Native.zermeloSso) {
+        /* stil opnieuw inloggen lukte net niet: vragen om opnieuw in te loggen bij Zermelo (alleen Zermelo) */
+        if (S.zmNeedLogin) { promptZermelo(); throw new Error('Log opnieuw in bij Zermelo om je rooster bij te werken. Je ziet het laatst opgehaalde rooster.'); }
         /* een login via je schoolaccount verloopt na ongeveer 16 uur: stil opnieuw inloggen */
         if (!S.zmRenewing) { S.zmRenewing = true; zermeloSso(true); }
         throw new Error('Opnieuw verbinden met Zermelo… Even geduld.');
       }
-      zermeloUnlink();
-      throw new Error('De koppeling met Zermelo is verlopen. Koppel opnieuw in Meer.');
+      /* gekoppeld met een code en die is verlopen: niet stil ontkoppelen, maar vragen om opnieuw in te loggen bij Zermelo */
+      S.zmNeedLogin = true; promptZermelo();
+      throw new Error('Je login bij Zermelo is verlopen. Log opnieuw in bij Zermelo om je rooster bij te werken.');
     }
     if (!r.ok) throw new Error('Zermelo gaf een fout (' + r.status + ').');
     const all = ((await r.json()).response || {}).data || [];
@@ -643,7 +755,12 @@
     const data = all.filter(a => a.valid !== false);
     const hm = t => { const d = new Date(t * 1000); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
     const byDay = new Map();
-    data.filter(a => a.type !== 'choice').sort((a, b) => a.start - b.start).forEach(a => {
+    /* uitgevallen lessen waar Zermelo je voor heeft uitgeschreven (bijv. "Les vervalt" op het laatste uur) komen niet
+       mee in je eigen afspraken: in Zermelo staan die als een los vakje. Die halen we uit het live-rooster erbij */
+    const extra = await extraP;
+    const taken = new Set(data.filter(a => a.type !== 'choice').map(a => a.start));
+    /* zelfde tijd: de les die doorgaat eerst, de uitgevallen erna (die staat dan als "+1" bij het vakje) */
+    data.filter(a => a.type !== 'choice').concat(extra.filter(a => !taken.has(a.start))).sort((a, b) => a.start - b.start || !!a.cancelled - !!b.cancelled).forEach(a => {
       const lok = (a.locations || []).join(', ');
       /* waar was het eerst: de oude versie van deze les, anders uit de omschrijving ("van a138 naar b065") */
       const o = old.get(a.appointmentInstance), oLok = o ? (o.locations || []).join(', ') : '';
@@ -669,7 +786,10 @@
   /* het portaal geeft soms een lege week terug; dan nog één keer proberen */
   async function loadRooster(monday) {
     if (DEMO) return DEMO.rooster(monday);
-    if (zm) return rememberRooms(await loadZermelo(monday));
+    /* uitgelogd bij Zermelo: het rooster van het portaal laten zien (de koppeling blijft staan), tot je weer inlogt */
+    if (zm && !S.zmNeedLogin) {
+      try { return rememberRooms(await loadZermelo(monday)); } catch (e) { if (!S.zmNeedLogin) throw e; }
+    }
     const days = await loadRoosterOnce(monday);
     return rememberRooms(days.length ? days : await loadRoosterOnce(monday));
   }
@@ -715,11 +835,15 @@
   let docenten = ls.get('cp:docenten', null);
   async function loadDocenten(force) {
     if (DEMO) return (docenten = DEMO.docenten || { list: {}, vakken: {}, t: Date.now() });
-    if (!force && docenten && Date.now() - docenten.t < 7 * 864e5) return docenten;
+    /* een lege lijst (bijv. opgehaald terwijl je uitgelogd was) telt niet: dan opnieuw ophalen */
+    const filled = docenten && docenten.list && Object.keys(docenten.list).length;
+    if (!force && filled && Date.now() - docenten.t < 7 * 864e5) return docenten;
     const base = await fetchDoc('/Portaal/Mijn_info/Docenten', '.som_docenten');
     const w = base.querySelector('.som_docenten');
     const id = w.getAttribute('rel') || (w.id || '').replace(/\D/g, '');
     const r = await fetch('/Portaal/Mijn_info/Docenten?wis_ajax&ajax_object=' + encodeURIComponent(id), { credentials: 'same-origin', cache: 'no-store' });
+    if (new URL(r.url).hostname !== HOST || r.status === 401 || r.status === 403) throw loggedOut();
+    if (!r.ok) throw new Error('De docentenlijst van het portaal kon niet worden opgehaald.');
     const d = new DOMParser().parseFromString(await r.text(), 'text/html');
     const list = {}, vakken = {};
     d.querySelectorAll('li').forEach(li => {
@@ -730,13 +854,27 @@
       const vk = [...li.querySelectorAll('.wp3-course span[title]')].map(s => { vakken[clean(s.textContent).toLowerCase()] = s.getAttribute('title'); return s.getAttribute('title'); });
       list[code] = { name, mail, vakken: vk };
     });
+    if (!Object.keys(list).length) throw new Error('De docentenlijst van het portaal is leeg.');
     docenten = { list, vakken, t: Date.now() };
     ls.set('cp:docenten', docenten);
     return docenten;
   }
   const docent = code => docenten && docenten.list[String(code || '').toLowerCase().split(/[ ,]/)[0]];
-  function showDocent(code) {
+  function showDocent(code, tried) {
     const dc = docent(code);
+    /* niet gevonden: de lijst kan oud of leeg zijn (bijv. opgehaald terwijl je uitgelogd was). Eén keer opnieuw ophalen */
+    if (!dc && !tried && !DEMO) {
+      const w = document.createElement('div');
+      w.className = 'modal';
+      w.innerHTML = `<div class="sheet"><h3>${esc(String(code).toUpperCase())}</h3><div class="spinner" style="margin:6px auto"></div><p class="small muted" style="text-align:center">Docent opzoeken…</p></div>`;
+      app.appendChild(w);
+      loadDocenten(true).catch(e => e).then(res => {
+        if (!w.isConnected) return;
+        w.remove();
+        showDocent(code, res instanceof Error && res.message === 'login' ? 'login' : true);
+      });
+      return;
+    }
     const m = document.createElement('div');
     m.className = 'modal';
     m.innerHTML = `<div class="sheet"><h3>${esc(dc ? dc.name : String(code).toUpperCase())}</h3>
@@ -744,9 +882,12 @@
         <div class="listrow"><span class="muted">E-mail</span><b style="user-select:text">${esc(dc.mail)}</b></div>
         ${dc.vakken.length ? `<div class="listrow"><span class="muted">Vakken</span><b>${esc(dc.vakken.join(', '))}</b></div>` : ''}
         <div class="row"><button class="btn" data-a="mail">Mail sturen</button><button class="btn ghost" data-a="copy">Kopieer e-mail</button></div>`
-        : '<p class="small muted">Deze docent staat niet in je docentenlijst op het portaal.</p>'}
+        : tried === 'login' ? `<p class="small muted">Je bent uitgelogd bij school. Log opnieuw in om de gegevens van deze docent te zien.</p><button class="btn" data-a="relog">Opnieuw inloggen</button>`
+        : `<p class="small muted">${docenten && docenten.list && Object.keys(docenten.list).length ? 'Deze docent staat niet in je docentenlijst op het portaal.' : 'De docentenlijst kon niet worden opgehaald. Probeer het later opnieuw.'}</p>`}
       <button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
+    const rb = m.querySelector('[data-a=relog]');
+    if (rb) rb.onclick = () => { m.remove(); relogin(); };
     const mb = m.querySelector('[data-a=mail]');
     if (mb) mb.onclick = () => { if (Native && Native.open) Native.open('mailto:' + dc.mail); else location.href = 'mailto:' + dc.mail; };
     const cb = m.querySelector('[data-a=copy]');
@@ -925,6 +1066,7 @@
   .absx { appearance: none; border: 0; background: var(--surface2); color: var(--muted); width: 26px; height: 26px; border-radius: 13px; font: 700 16px/1 var(--f-body); flex-shrink: 0; margin-left: 8px; }
   .listrow.gone-out { transition: opacity .2s, transform .2s; opacity: 0; transform: translateX(30px); }
   .seg::-webkit-scrollbar { display: none; }
+  .seg.fadeR { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
   .seg button { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--fg2); font: 600 14px var(--f-body); padding: 7px 14px;
     border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
   .seg button.on { background: var(--fg); border-color: var(--fg); color: var(--bg); }
@@ -970,6 +1112,10 @@
   .day-h.today { color: var(--accent-text); }
   .setting-h { font: 700 17px var(--f-display); letter-spacing: -.01em; margin-bottom: 10px; }
   .lbl { font: 600 13px var(--f-body); color: var(--fg2); }
+  /* vaste afstanden: een kopje of label dat een nieuw stuk in een kaart begint 14 px, een label boven een invulveld 10 px */
+  .lbl.sec { display: block; margin-top: 14px; }
+  .lbl.fld { display: block; margin-top: 10px; }
+  .setting-h.sub { margin-top: 14px; }
   .tag { display: inline-block; font: 700 10px var(--f-mono); padding: 3px 7px; border-radius: 6px; background: var(--accent); color: var(--ink); letter-spacing: .06em; vertical-align: middle; }
   .tag.dim { background: var(--surface2); color: var(--muted); }
   .tag.red { background: var(--red); color: #fff; }
@@ -1060,10 +1206,19 @@
   .hw .txt { color: var(--fg2); font-size: 14px; margin-top: 6px; white-space: pre-line; word-wrap: break-word; user-select: text; }
   .hw .meta { color: var(--muted); font: 500 11px var(--f-mono); margin-top: 6px; letter-spacing: .04em; }
   .doc { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+  /* "Uitgelogd bij Zermelo / school": blijft staan tot je weer bent ingelogd */
+  .outbar { appearance: none; display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; margin: 10px 0 2px; padding: 12px 16px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--red) 35%, transparent); background: color-mix(in srgb, var(--red) 8%, var(--surface)); color: var(--fg); font: 600 15px var(--f-body); }
+  .outbar b { font-weight: 700; color: var(--red); }
+  .outbar span { font-size: 13px; color: var(--fg2); }
+  /* "… nieuw in week …" bij Huiswerk: zelfde vorm, in de accentkleur */
+  .outbar.newbar { border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  .outbar.newbar b { color: var(--accent-text); }
+  .newwks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .newwks button { appearance: none; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: var(--surface); color: var(--fg); font: 600 13px var(--f-body); padding: 7px 12px; border-radius: 999px; }
   .bell { appearance: none; border: 0; background: none; color: var(--muted); font: 500 11px var(--f-mono); padding: 0; display: inline-flex; align-items: center; gap: 4px; letter-spacing: .02em; }
   .bell svg { width: 12px; height: 12px; }
   .bell.own { color: var(--accent-text); }
-  .check { appearance: none; flex-shrink: 0; width: 28px; height: 28px; border-radius: 9px; border: 2px solid var(--line); background: none; color: var(--ink);
+  .check { appearance: none; flex-shrink: 0; width: 28px; height: 28px; border-radius: 9px; border: 2px solid var(--muted); background: none; color: var(--ink); /* rand in de grijze tekstkleur: goed te zien (contrast 3:1+), ook in donker */
     font: 900 15px var(--f-body); display: flex; align-items: center; justify-content: center; margin-top: 1px; }
   .check.on { background: var(--accent); border-color: var(--accent); }
   .check.pop { position: relative; animation: chk .42s cubic-bezier(.3, 1.6, .5, 1); }
@@ -1280,6 +1435,9 @@
   .wkc.exam { box-shadow: 0 0 0 1px var(--accent) inset; }
   /* huiswerk voor deze les: klein labeltje HW (afgevinkt = grijs met een vinkje) */
   .wkc .hwb { position: absolute; bottom: 2px; right: 2px; font: 700 7px/1 var(--f-mono); text-decoration: none; letter-spacing: .02em; padding: 2px 3px; border-radius: 4px; background: var(--accent); color: var(--ink); }
+  /* verkorte les: de tijd staat onderaan, dus het HW-labeltje rechtsboven in het vakje (onder een eventuele "+1") */
+  .wkc[data-kort] .hwb { bottom: auto; top: 2px; }
+  .wkc[data-kort] i + .hwb { top: 12px; }
   .wkc .hwb.done, .tag.hwt.done { background: var(--surface2); color: var(--muted); }
   /* dagen die al geweest zijn: een heel klein beetje grijzer, het HW-labeltje ook */
   .hw-in-les { background: var(--surface2); border-radius: 12px; padding: 10px 12px; margin-top: 8px; }
@@ -1329,6 +1487,21 @@
   .modes button { appearance: none; border: 0; background: none; color: var(--fg2); border-radius: 9px; padding: 7px 2px; font: 600 12px var(--f-body); }
   .modes button.on { background: var(--surface); color: var(--fg); box-shadow: 0 1px 0 var(--line), 0 0 0 1px var(--line); }
   .modes button.on[data-mode$=":uit"] { color: var(--red); }
+  /* tikvlakken: kleine knoppen onzichtbaar groter maken (richtlijn: 44 px), alleen in de richting waar geen buurknop zit,
+     zodat ze nooit over elkaar heen vallen. Het uiterlijk verandert niet */
+  .seg button, .modes button, .chip, .check, .doc, .bell, .linkbtn { position: relative; }
+  .seg button::before, .modes button::before { content: ''; position: absolute; inset: -6px 0; }
+  .seg { padding-block: 6px; margin-block: -6px; } /* .seg scrollt opzij en zou het grotere tikvlak anders afknippen */
+  .chip::before { content: ''; position: absolute; inset: -3px 0; } /* 38 -> 44, rijen staan 6 px uit elkaar */
+  .check::before { content: ''; position: absolute; inset: -8px; } /* 28 -> 44 */
+  /* docent en reminder staan op een smal scherm onder elkaar: 12 px tussen de regels, en elk tikvlak 6 px groter naar
+     boven en onder (14 -> 26 px). Zo raken ze elkaar wel, maar overlappen ze nooit */
+  .hw .meta { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 12px; }
+  .doc::before, .bell::before { content: ''; position: absolute; inset: -6px 0; }
+  .linkbtn[style*="padding-bottom:0"]::before { content: ''; position: absolute; inset: 0 0 -12px; }
+  /* ontwikkelaar: tikvlakken zichtbaar maken (rood = de knop, gestreept = het extra tikvlak) */
+  .showhit :is(button, a[href], input, select, textarea, label.toggle-row, [role=button]) { outline: 1px solid rgba(255, 40, 40, .75) !important; outline-offset: -1px; }
+  .showhit :is(.seg button, .modes button, .chip, .check, .doc, .bell, .linkbtn[style*="padding-bottom:0"])::before { background: rgba(255, 40, 40, .16); outline: 1px dashed rgba(255, 40, 40, .9); }
   .nrow { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .nrow > b { font: 700 15px var(--f-display); }
   .dev-box { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
@@ -1480,8 +1653,7 @@
     packs: svg('<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18M12 8v13M12 8c-1.5-3-5.5-4-5.5-1.5S10 8 12 8zM12 8c1.5-3 5.5-4 5.5-1.5S14 8 12 8z"/>'),
     meer: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
     refresh: svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/>'),
-    bell: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'),
-    muziek: svg('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')
+    bell: svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/>')
   };
   const TABS = [
     { k: 'rooster', label: 'Rooster' },
@@ -1489,7 +1661,6 @@
     { k: 'cijfers', label: 'Cijfers' },
     { k: 'meer', label: 'Meer' }
   ];
-  if (MUSIC) TABS.push({ k: 'muziek', label: 'Muziek' }); /* helemaal rechts, na Meer */
   sh.innerHTML = `<style>${CSS}</style><div class="app"><header><img class="hmark" alt="C.R.H" width="40" height="40"><div class="hd"><p class="hdate"></p><h1></h1></div>
     <p class="hday"></p><button class="ibtn" data-a="refresh" aria-label="Vernieuwen">${ICONS.refresh}</button></header><main></main>
     <nav class="tabs"></nav></div>`;
@@ -1539,7 +1710,7 @@
     try { if (Native && Native.setTheme) Native.setTheme(t); } catch (e) {}
     /* het logo bovenin: zwart vierkant in het witte thema, wit vierkant in het zwarte thema */
     const mk = sh.querySelector('.hmark');
-    if (mk) mk.src = assetUrl('themes/' + logoFile(t === 'light' ? 'mark.png' : 'mark-wit.png'));
+    if (mk) mk.src = assetUrl('themes/' + (t === 'light' ? 'mark.png' : 'mark-wit.png'));
     return t;
   }
   let theme = applyTheme(ls.get('cp:theme', 'light')); /* standaard: wit met geel */
@@ -1547,7 +1718,7 @@
 
   /* weergave: wit of zwart, met een eigen accentkleur (geen achtergrondfoto's: die kostten veel geheugen) */
   const ASSET = n => assetUrl('themes/' + n);
-  sh.querySelector('.hmark').src = ASSET(logoFile(theme === 'light' ? 'mark.png' : 'mark-wit.png'));
+  sh.querySelector('.hmark').src = ASSET(theme === 'light' ? 'mark.png' : 'mark-wit.png');
   /* van een oudere versie: een gekozen foto-thema of eigen foto opruimen */
   if (ls.get('cp:themeSet', 'custom') !== 'custom' || ls.get('cp:ownPhoto', null)) {
     try { localStorage.removeItem('cp:ownPhoto'); localStorage.removeItem('cp:themeSet'); } catch (e) {}
@@ -1560,7 +1731,28 @@
   applyLook();
   const S = { tab: 'rooster', rView: ls.get('cp:rview', 'week'), /* eerste keer: de hele week; daarna wat je zelf koos */ dev: [], devSeen: new Set(), devOn: false, grades: ls.get('cp:cache:grades', null), gradesErr: null, loadingGrades: false, ovPeriod: null,
     hwMonday: defaultMonday(), hw: {}, rMonday: defaultMonday(), rooster: {}, rDay: null, abs: null, packBusy: false, fresh: {}, failT: {} };
+  /* ontwikkelaar "Altijd open": alleen in de opslag van de app op deze telefoon (gaat nergens heen, ook niet mee
+     naar een ander account). Dan staat Ontwikkelaar altijd open zonder code, en krijg je ook canary-updates */
+  const devAlways = () => !!ls.get('cp:devAlways', false);
+  if (devAlways()) S.devOn = true;
+  /* ontwikkelaar: tikvlakken tonen (alleen op deze telefoon) */
+  app.classList.toggle('showhit', !!ls.get('cp:showHit', false));
+  /* rijtjes knopjes die opzij scrollen (dagen, doelcijfers): rechts zacht laten vervagen zolang er nog meer is.
+     Anders leek een half afgekapt knopje ("vr 2…") kapot in plaats van "hier kun je vegen" */
+  const fadeRow = s => s.classList.toggle('fadeR', s.scrollWidth - s.clientWidth - s.scrollLeft > 4);
+  const markScrollRows = () => sh.querySelectorAll('.seg').forEach(s => {
+    fadeRow(s);
+    if (!s.dataset.fw) { s.dataset.fw = '1'; s.addEventListener('scroll', () => fadeRow(s), { passive: true }); }
+  });
+  let scrollRowsQ = 0;
+  new MutationObserver(() => { if (!scrollRowsQ) scrollRowsQ = requestAnimationFrame(() => { scrollRowsQ = 0; markScrollRows(); }); }).observe(sh, { childList: true, subtree: true });
 
+  /* het vakje "Uitgelogd bij …": opnieuw inloggen, alleen bij die ene */
+  sh.querySelector('.app').addEventListener('click', e => {
+    const b = e.target.closest('.outbar[data-a]'); /* niet het vakje "nieuw in week …" (dat heeft geen data-a) */
+    if (!b) return;
+    if (b.dataset.a === 'relogzm') zmRelogin(); else relogin();
+  });
   /* overal in de app: tik op een docent */
   sh.querySelector('.app').addEventListener('click', e => {
     const b = e.target.closest('[data-doc]');
@@ -1571,12 +1763,12 @@
   /* tabbalk zelf indelen: volgorde en zichtbaarheid (Meer staat altijd achteraan) */
   function tabLayout() {
     const saved = ls.get('cp:tabs', null);
-    const keys = TABS.filter(t => t.k !== 'meer' && t.k !== 'muziek').map(t => t.k);
+    const keys = TABS.filter(t => t.k !== 'meer').map(t => t.k);
     const list = Array.isArray(saved) ? saved.filter(t => keys.includes(t.k)) : [];
     keys.forEach(k => { if (!list.some(t => t.k === k)) list.push({ k, on: true }); });
     return list;
   }
-  const visibleTabs = () => tabLayout().filter(t => t.on).map(t => t.k).concat('meer', MUSIC ? ['muziek'] : []);
+  const visibleTabs = () => tabLayout().filter(t => t.on).map(t => t.k).concat('meer');
   function drawNav() {
     const nav = sh.querySelector('nav.tabs'), vis = visibleTabs();
     nav.style.gridTemplateColumns = `repeat(${vis.length}, 1fr)`;
@@ -1616,7 +1808,7 @@
     const draw = () => {
       const e = dataEstimate(st, opens);
       p.innerHTML = `<div class="panel-h"><h2>Datagebruik</h2><button class="btn" data-a="done">Klaar</button></div>
-        <p class="small muted">Hoe vaak W.S.P op de achtergrond naar nieuwe cijfers, huiswerk en roosterwijzigingen kijkt. 's Nachts (23:00–06:00) kijkt hij niet. Als je de app opent of op vernieuwen tikt, haalt hij altijd alles op.${IOS ? ' Op iPhone bepaalt iOS zelf wanneer de app mag kijken (meestal een paar keer per dag): wat je hier kiest is hoe vaak hij hooguit kijkt, de schatting is dus het maximum.' : ''}</p>
+        <p class="small muted">Hoe vaak C.R.H op de achtergrond naar nieuwe cijfers, huiswerk en roosterwijzigingen kijkt. 's Nachts (23:00–06:00) kijkt hij niet. Als je de app opent of op vernieuwen tikt, haalt hij altijd alles op.${IOS ? ' Op iPhone bepaalt iOS zelf wanneer de app mag kijken (meestal een paar keer per dag): wat je hier kiest is hoe vaak hij hooguit kijkt, de schatting is dus het maximum.' : ''}</p>
         <div class="seg">${[['wifi', 'Wifi'], ['mobile', '4G/5G']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab2="${k}">${l}</button>`).join('')}</div>
         ${tab === 'wifi' ? `<div class="card-box"><div class="setting-h">Op wifi kijken</div>
             ${opt('wifi', [['30', 'Elk half uur'], ['60', 'Elk uur'], ['120', 'Elke 2 uur']])}
@@ -1732,7 +1924,7 @@
       /* rood getalletje: nieuwe cijfers bij Cijfers, nieuw/aangepast huiswerk bij Huiswerk, nieuwe absentie-aantekeningen bij Meer */
       const t = b.dataset.tab;
       const n = t === 'cijfers' ? ((S.grades || S.dev.length) && store.init ? newGrades().length : 0)
-        : t === 'huiswerk' ? (S.tab === 'huiswerk' ? 0 : (ls.get('cp:hwNew', []) || []).length + (S.devHwNew || 0))
+        : t === 'huiswerk' ? (S.tab === 'huiswerk' ? 0 : Object.keys(hwPending()).length + (S.devHwNew || 0))
         : t === 'meer' ? absNewCount() : 0;
       if (n) b.insertAdjacentHTML('beforeend', `<span class="dot">${n > 9 ? '9+' : n}</span>`);
     });
@@ -1774,748 +1966,14 @@
     updateNav();
     if (S.tab === 'meer' && !sh.querySelector('.modal, .panel, .ov')) renderMore();
   }
-  /* ================= Music Edition: muziekspeler in het W.S.P-thema, met de indeling van Metrolist =================
-     Zoeken, afspelen en downloaden doet de app zelf (de code van Metrolist, via YouTube Music); deze pagina tekent
-     alleen. Brug (MN = window.CijferMusic, in de preview voorbeelddata):
-       musicHome/musicLibrary/musicQueue/musicAccount/musicGetSettings/musicLogout(reqId), musicSearch(q, reqId),
-       musicHomeChip(params, reqId) -> window.__cpMusicRes(reqId, json)
-       musicPlay(queueJson, index), musicCmd(cmd, arg), musicState() -> json, musicLike/musicDownload(songJson, aan),
-       musicSongAction(next|queue|radio|share, songJson), musicQueueJump(i), musicLogin(), musicSetSetting(k, v),
-       musicWarm(), musicPrefetch(idsJson): alvast de afspeel-link ophalen zodat een nummer meteen start.
-     De app meldt wijzigingen in de speler met window.__cpMusicState(json). Een nummer: { id, title, artist, album, dur (s), thumb } */
-  const M = { view: ls.get('cp:mStart', 'ontdek'), libTab: ls.get('cp:mLibStart', 'lijsten'), libOpen: null, q: '', searching: false, home: null, chip: null,
-    album: null, plists: null, plOpen: null, lyrics: {}, showLyrics: false,
-    search: null, lib: null, acc: null, st: null, playerOpen: false, req: 0, wait: {} };
-  function mCall(fn, ...args) {
-    return new Promise(res => {
-      const id = 'm' + (++M.req);
-      M.wait[id] = res;
-      try { MN[fn](...args, id); } catch (e) { delete M.wait[id]; res({ error: String(e && e.message || e) }); }
-      setTimeout(() => { if (M.wait[id]) { delete M.wait[id]; res({ error: 'Duurt te lang, controleer je internet.' }); } }, 25000);
-    });
-  }
-  window.__cpMusicRes = (id, json) => { const r = M.wait[id]; if (!r) return; delete M.wait[id]; try { r(JSON.parse(json)); } catch (e) { r({ error: 'Onleesbaar antwoord' }); } };
-  window.__cpMusicState = json => { try { M.st = JSON.parse(json); } catch (e) { return; } musicDrawBar(); if (M.playerOpen) musicDrawPlayer(); if (S.tab === 'muziek') musicMarkPlaying(); };
-  const mFmt = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-  const mArt = (song, cls = '') => {
-    if (song && song.thumb) return `<img class="m-art ${cls}" src="${esc(song.thumb)}" alt="" loading="lazy">`;
-    const t = (song && song.title) || '♪', h = [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
-    return `<span class="m-art ${cls}" style="background:linear-gradient(135deg,hsl(${h} 55% 50%),hsl(${(h + 60) % 360} 55% 28%))">${esc(t[0])}</span>`;
-  };
-  const MI = {
-    play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>',
-    pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg>',
-    next: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 5v14l10-7zM17 5h2.5v14H17z"/></svg>',
-    prev: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 5v14L9 12zM4.5 5H7v14H4.5z"/></svg>',
-    dl: svg('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'), dlOk: svg('<path d="M5 12.5l4.5 4.5L19 7.5M5 21h14"/>'),
-    heart: svg('<path d="M12 20s-7.5-4.6-9.2-9.2C1.6 7.4 3.8 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.4 0 5.6 3.4 4.4 6.8C19.5 15.4 12 20 12 20z"/>'),
-    shuffle: svg('<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>'), repeat: svg('<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>'),
-    down: svg('<path d="M6 9l6 6 6-6"/>'), back: svg('<path d="M15 18l-6-6 6-6"/>'), search: svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
-    more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
-    gear: ICONS.meer, user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
-    queue: svg('<path d="M4 6h12M4 12h12M4 18h7M16 15v6l5-3z"/>'), next2: svg('<path d="M4 6h12M4 12h12M4 18h8M19 14v8M15 18h8"/>'),
-    radio: svg('<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/>'),
-    share: svg('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>'),
-    plus: svg('<path d="M12 5v14M5 12h14"/>'), lyrics: svg('<path d="M4 5h16v11H8l-4 4zM8 9h8M8 12h5"/>'),
-    hist: svg('<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3"/>'), moon: svg('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'), disc: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>')
-  };
-  const mCur = () => M.st && M.st.song;
-  const mLiked = id => !!(M.lib && (M.lib.liked || []).some(s => s.id === id));
-  const mDled = id => !!(M.lib && (M.lib.downloaded || []).some(s => s.id === id));
-  /* lijsten bewaren op naam, zodat een tik weet welk nummer en welke wachtrij */
-  const mLists = {};
-  const mList = (name, items) => { mLists[name] = items || []; return name; };
-  function musicRow(s, list, i) {
-    const on = mCur() && mCur().id === s.id;
-    return `<div class="m-row${on ? ' on' : ''}" data-mplay="${i}" data-mlist="${list}">${mArt(s)}
-      <div class="m-t"><b>${esc(s.title)}</b><span>${mLiked(s.id) ? '<i class="m-like">' + MI.heart + '</i>' : ''}${mDled(s.id) ? '<i class="m-ok">' + MI.dlOk + '</i>' : ''}${esc(s.artist || '')}${s.dur ? ' • ' + mFmt(s.dur) : ''}</span></div>
-      <button class="m-ib" data-mmenu="${i}" data-mlist="${list}" aria-label="Meer">${MI.more}</button></div>`;
-  }
-  function mStyle() { if (!sh.querySelector('.m-style')) { const st = document.createElement('style'); st.className = 'm-style'; st.textContent = MUSIC_CSS; sh.appendChild(st); } }
-  async function musicLoad(what) {
-    if (what === 'home' && !M.home) { M.home = await mCall('musicHome'); }
-    if (what === 'lib' || !M.lib) { const r = await mCall('musicLibrary'); if (!r.error) M.lib = r; }
-    if (!M.acc) { const a = await mCall('musicAccount'); if (!a.error) M.acc = a; }
-    if (S.tab === 'muziek') musicDrawPage();
-  }
-  function renderMusic() {
-    setHeader('Muziek');
-    mStyle();
-    musicDrawPage();
-    musicLoad('home');
-    try { MN.musicWarm && MN.musicWarm(); } catch (e) {} /* afspelen alvast klaarzetten: het eerste nummer start dan sneller */
-  }
-  /* ---------- de pagina ---------- */
-  function musicTop() {
-    const acc = M.acc, letter = acc && acc.loggedIn && acc.name ? esc(acc.name.trim()[0].toUpperCase()) : '';
-    return `<div class="m-top"><div class="m-chips">${[['ontdek', 'Ontdekken'], ['bieb', 'Bibliotheek']].map(([k, l]) => `<button class="m-chip${M.view === k && !M.searching ? ' on' : ''}" data-mview="${k}">${l}</button>`).join('')}</div>
-      <button class="m-ib" data-msearch aria-label="Zoeken">${MI.search}</button>
-      <button class="m-ib" data-msettings aria-label="Instellingen muziek">${MI.gear}</button>
-      <button class="m-avatar${letter ? ' in' : ''}" data-msettings aria-label="Account">${letter || MI.user}</button></div>`;
-  }
-  function musicDiscover() {
-    const h = M.home;
-    if (!h) return '<div class="m-chiprow">' + '<span class="m-chip m-skel">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>'.repeat(4) + '</div>'
-      + '<div class="m-h">&nbsp;</div><div class="m-grid">' + '<div class="m-row m-skel"><span class="m-art"></span><div class="m-t"><b>&nbsp;</b><span>&nbsp;</span></div></div>'.repeat(4) + '</div>';
-    if (h.error) return errBox(h.error);
-    const chips = (h.chips || []).length ? `<div class="m-chiprow">${h.chips.map((c, i) => `<button class="m-chip${M.chip === i ? ' on' : ''}" data-mmood="${i}">${esc(c.title)}</button>`).join('')}</div>` : '';
-    return chips + h.sections.map((sec, n) => {
-      const name = mList('h' + n, sec.items);
-      const all = `<button class="m-all" data-mplay="0" data-mlist="${name}">${MI.play} Alles</button>`;
-      if (sec.cards) return `<div class="m-h">${esc(sec.title)}</div><div class="m-cards">${sec.items.map((s, i) => `<button class="m-card" data-mplay="${i}" data-mlist="${name}">${mArt(s, 'big')}<b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></button>`).join('')}</div>`;
-      /* zoals Quick picks in Metrolist: 4 rijen onder elkaar, opzij vegen voor meer */
-      return `<div class="m-h">${esc(sec.title)}${all}</div><div class="m-grid">${sec.items.map((s, i) => musicRow(s, name, i)).join('')}</div>`;
-    }).join('');
-  }
-  function libAll() {
-    const l = M.lib || {}, seen = new Set(), out = [];
-    ['liked', 'downloaded', 'recent'].forEach(k => (l[k] || []).forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); out.push(s); } }));
-    return out;
-  }
-  const LIB_LISTS = { liked: ['Leuk gevonden', 'heart'], downloaded: ['Gedownload', 'dlOk'], recent: ['Laatst geluisterd', 'hist'] };
-  /* een afspeellijst of album als pagina: hoes, titel, afspelen/shuffle, (bij een lijst) downloaden aan/uit, nummers */
-  function musicCollection(o, backAttr) {
-    if (!o || o.loading) return `<div class="m-subhead"><button class="m-ib" ${backAttr} aria-label="Terug">${MI.back}</button><b>${esc((o && o.title) || '')}</b></div><div class="muted small m-pad">Laden…</div>`;
-    if (o.error) return `<div class="m-subhead"><button class="m-ib" ${backAttr} aria-label="Terug">${MI.back}</button></div>${errBox(o.error)}`;
-    const items = o.songs || [], name = mList('coll', items);
-    const cover = o.thumb ? mArt({ title: o.title, thumb: o.thumb }, 'cover') : items[0] ? mArt(items[0], 'cover') : `<span class="m-art cover m-tboxart">${MI.queue}</span>`;
-    return `<div class="m-subhead"><button class="m-ib" ${backAttr} aria-label="Terug">${MI.back}</button></div>
-      <div class="m-collhead">${cover}<b>${esc(o.title)}</b><span>${o.artist ? esc(o.artist) + ' · ' : ''}${o.year ? o.year + ' · ' : ''}${items.length} nummers</span></div>
-      <div class="m-acts">${o.pl ? `<button class="m-dltoggle${o.download ? ' on' : ''}" data-mpldl="${esc(o.id)}">${o.download ? MI.dlOk + ' Gedownload' : MI.dl + ' Downloaden'}</button>` : ''}
-        ${items.length ? `<button class="m-bigplay" data-mplay="0" data-mlist="${name}" aria-label="Afspelen">${MI.play}</button><button class="m-ib" data-mshuffle="${name}" aria-label="Shuffle">${MI.shuffle}</button>` : ''}</div>
-      ${o.pl && o.download ? '<p class="small muted m-dlnote">Nummers die je later aan deze lijst toevoegt, worden ook gedownload.</p>' : ''}
-      ${items.length ? `<div class="card-box m-list">${items.map((s, i) => musicRow(s, name, i)).join('')}</div>` : '<div class="muted small m-pad">Nog geen nummers. Voeg ze toe via de drie puntjes bij een nummer.</div>'}`;
-  }
-  const plTile = p => {
-    const th = (p.thumbs || []).slice(0, 4);
-    const box = th.length >= 4 ? `<span class="m-tbox m-collage">${th.map(u => `<img src="${esc(u)}" alt="" loading="lazy">`).join('')}</span>`
-      : th.length ? `<span class="m-tbox"><img class="m-tboximg" src="${esc(th[0])}" alt="" loading="lazy"></span>` : `<span class="m-tbox">${MI.queue}</span>`;
-    return `<button class="m-tile" data-mpl="${esc(p.id)}">${box}<b>${esc(p.title)}</b><span>${p.download ? '<i class="m-ok">' + MI.dlOk + '</i> ' : ''}${p.count} nummers</span></button>`;
-  };
-  async function musicLoadPlaylists() { const r = await mCall('musicPlaylists'); if (!r.error) M.plists = r.playlists || []; if (S.tab === 'muziek') musicDrawPage(); }
-  async function musicOpenPlaylist(id) {
-    const p = (M.plists || []).find(x => x.id === id);
-    M.plOpen = { id, pl: true, loading: true, title: p ? p.title : '' };
-    musicDrawPage(); main.scrollTop = 0;
-    const r = await mCall('musicPlaylist', id);
-    if (!M.plOpen || M.plOpen.id !== id) return;
-    M.plOpen = Object.assign({ pl: true }, r);
-    musicDrawPage();
-  }
-  /* eigen vensters in W.S.P-stijl (de standaard prompt/confirm van Android heet "JavaScript" en past er niet bij) */
-  function mAsk(title, opts = {}) {
-    return new Promise(done => {
-      let answered = false;
-      const finish = v => { if (answered) return; answered = true; done(v); };
-      const close = musicSheet(`<div class="m-ask"><div class="setting-h">${esc(title)}</div>${opts.text ? `<p class="small muted">${esc(opts.text)}</p>` : ''}
-        ${opts.input ? `<input class="m-askin" type="text" maxlength="100" placeholder="${esc(opts.input)}" enterkeyhint="done">` : ''}
-        <div class="m-askbtns"><button class="btn ghost" data-ma="no">Annuleren</button><button class="btn" data-ma="yes">${esc(opts.ok || 'OK')}</button></div></div>`, a => {
-        const v = sh.querySelector('.m-askin');
-        finish(a === 'yes' ? (opts.input ? (v ? v.value.trim() : '') : true) : null);
-      });
-      const inp = sh.querySelector('.m-askin');
-      if (inp) {
-        setTimeout(() => inp.focus(), 280);
-        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { const v = inp.value.trim(); close(); finish(v); } });
-      }
-      const bg = sh.querySelector('.m-sheetbg');
-      if (bg) new MutationObserver((m, o) => { if (!bg.isConnected) { o.disconnect(); finish(null); } }).observe(app, { childList: true });
-    });
-  }
-  async function musicNewPlaylist(then) {
-    const name = await mAsk('Nieuwe afspeellijst', { input: 'Naam van de lijst', ok: 'Maken', text: M.acc && M.acc.loggedIn ? 'Komt ook in je YouTube Music.' : 'Wordt op deze telefoon bewaard; inloggen is niet nodig.' });
-    if (!name || !name.trim()) return;
-    const r = await mCall('musicCreatePlaylist', name.trim());
-    if (r.error) return toast(r.error);
-    toast('Afspeellijst gemaakt: ' + name.trim());
-    await musicLoadPlaylists();
-    if (then) then(r.id, name.trim());
-  }
-  function musicLibrary() {
-    const l = M.lib;
-    if (!l) return '<div class="muted small m-pad">Laden…</div>';
-    if (M.plOpen) return musicCollection(M.plOpen, 'data-mplback');
-    if (M.libOpen) {
-      const [key, title] = M.libOpen, items = key.startsWith('g:') ? libAll().filter(s => (key[2] === 'a' ? s.artist : s.album) === key.slice(4)) : (l[key] || []);
-      const name = mList('open', items);
-      return `<div class="m-subhead"><button class="m-ib" data-mlibback aria-label="Terug">${MI.back}</button><b>${esc(title)}</b><span class="muted small">${items.length} nummers</span></div>
-        ${items.length ? `<div class="m-acts"><button class="m-bigplay" data-mplay="0" data-mlist="${name}">${MI.play}</button><button class="m-ib" data-mshuffle="${name}" aria-label="Shuffle">${MI.shuffle}</button></div>
-        <div class="card-box m-list">${items.map((s, i) => musicRow(s, name, i)).join('')}</div>` : '<div class="muted small m-pad">Nog niets hier.</div>'}`;
-    }
-    const tabs = [['lijsten', 'Afspeellijsten'], ['nummers', 'Nummers'], ['albums', 'Albums'], ['artiesten', 'Artiesten']];
-    let body = '';
-    const all = libAll();
-    if (M.libTab === 'lijsten') {
-      if (!M.plists) musicLoadPlaylists();
-      body = `<div class="m-tiles">${Object.entries(LIB_LISTS).map(([k, [t, ic]]) => `<button class="m-tile" data-mlib="${k}"><span class="m-tbox">${MI[ic]}</span><b>${t}</b><span>${(l[k] || []).length} nummers</span></button>`).join('')}
-        ${(M.plists || []).map(plTile).join('')}
-        <button class="m-tile" data-mplnew><span class="m-tbox m-new">${MI.plus}</span><b>Nieuwe lijst</b><span>maken</span></button></div>`;
-    }
-    if (M.libTab === 'nummers') { const n = mList('alles', all); body = all.length ? `<div class="card-box m-list">${all.map((s, i) => musicRow(s, n, i)).join('')}</div>` : '<div class="muted small m-pad">Nog geen nummers. Vind iets leuk, download iets of luister wat.</div>'; }
-    if (M.libTab === 'albums' || M.libTab === 'artiesten') {
-      const field = M.libTab === 'albums' ? 'album' : 'artist', groups = {};
-      all.forEach(s => { const g = s[field]; if (g) (groups[g] = groups[g] || []).push(s); });
-      const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
-      body = keys.length ? `<div class="m-tiles">${keys.map(g => `<button class="m-tile${field === 'artist' ? ' round' : ''}" data-mlib="g:${field[1]}:${esc(g)}" data-mlibtitle="${esc(g)}">${mArt(groups[g][0], 'tilebox')}<b>${esc(g)}</b><span>${groups[g].length} nummers</span></button>`).join('')}</div>`
-        : '<div class="muted small m-pad">Nog niets hier.</div>';
-    }
-    return `<div class="m-chiprow">${tabs.map(([k, t]) => `<button class="m-chip${M.libTab === k ? ' on' : ''}" data-mlibtab="${k}">${t}</button>`).join('')}</div>${body}`;
-  }
-  function musicDrawPage() {
-    if (S.tab !== 'muziek') return;
-    let body;
-    if (M.album) body = musicCollection(M.album, 'data-malbumback');
-    else if (M.searching) {
-      const r = M.search, q = M.q.trim();
-      body = `<label class="m-search"><button class="m-ib" data-msearchclose aria-label="Terug">${MI.back}</button><input type="search" placeholder="Zoek in YouTube Music" value="${esc(M.q)}" enterkeyhint="search">${M.q ? `<button class="m-ib" data-mclear aria-label="Wissen">${MI.x}</button>` : ''}</label>`
-        + (!q ? '<div class="muted small m-pad">Typ een nummer of artiest.</div>'
-          : !r || r.q !== q ? '<div class="muted small m-pad">Zoeken…</div>'
-          : r.error ? errBox(r.error)
-          : !r.songs.length && !(r.albums || []).length ? `<div class="muted small m-pad">Niets gevonden voor "${esc(r.q)}".</div>`
-          : `${(r.albums || []).length ? `<div class="m-h">Albums</div><div class="m-cards">${r.albums.map((a, i) => `<button class="m-card" data-malbum="${i}">${mArt(a, 'big')}<b>${esc(a.title)}</b><span>${esc(a.artist || '')}${a.year ? ' · ' + a.year : ''}</span></button>`).join('')}</div>` : ''}
-            ${r.songs.length ? `<div class="m-h">Nummers</div><div class="card-box m-list">${r.songs.map((s, i) => musicRow(s, mList('zoek', r.songs), i)).join('')}</div>` : ''}`);
-    } else body = musicTop() + (M.view === 'ontdek' ? musicDiscover() : musicLibrary());
-    const keepFocus = sh.activeElement && sh.activeElement.matches && sh.activeElement.matches('.m-search input');
-    main.innerHTML = `<div class="pad m-page">${body}<p class="muted small m-credit">Music Edition · muziek via YouTube Music · speler gemaakt met Metrolist</p></div>`;
-    const inp = main.querySelector('.m-search input');
-    if (inp && (keepFocus || M.searching && !M.q)) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
-    musicPrefetchVisible();
-  }
-  /* de bovenste nummers alvast klaarzetten (afspeel-link ophalen), zodat ze direct beginnen als je erop tikt */
-  function musicPrefetchVisible() {
-    if (!MN.musicPrefetch) return;
-    const ids = [...main.querySelectorAll('.m-row[data-mplay], .m-card[data-mplay]')].slice(0, 4).map(b => (mLists[b.dataset.mlist] || [])[+b.dataset.mplay]).filter(Boolean).map(s => s.id);
-    if (ids.length) try { MN.musicPrefetch(JSON.stringify([...new Set(ids)])); } catch (e) {}
-  }
-  function musicMarkPlaying() {
-    const cur = mCur();
-    main.querySelectorAll('.m-row[data-mplay]').forEach(r => { const s = (mLists[r.dataset.mlist] || [])[+r.dataset.mplay]; r.classList.toggle('on', !!(cur && s && s.id === cur.id)); });
-  }
-  function musicPlayList(list, i) {
-    if (!list[i]) return;
-    M.st = Object.assign({}, M.st || {}, { song: list[i], loading: true, playing: false, pos: 0, dur: list[i].dur || 0 });
-    musicDrawBar(); musicMarkPlaying();
-    try { MN.musicPlay(JSON.stringify(list), i); } catch (err) { toast('Afspelen lukt niet'); }
-    if (navigator.vibrate) navigator.vibrate(8);
-  }
-  let mSearchT = 0;
-  main.addEventListener('input', e => {
-    if (S.tab !== 'muziek' || !e.target.matches('.m-search input')) return;
-    M.q = e.target.value;
-    clearTimeout(mSearchT);
-    const q = M.q.trim();
-    if (!q) { M.search = null; musicDrawPage(); return; }
-    mSearchT = setTimeout(async () => { const r = await mCall('musicSearch', q); if (M.q.trim() !== q) return; M.search = Object.assign({ songs: [] }, r, { q }); musicDrawPage(); }, 300);
-  });
-  main.addEventListener('click', async e => {
-    if (S.tab !== 'muziek') return;
-    const t = e.target.closest('[data-mview],[data-mplay],[data-mmenu],[data-mclear],[data-msearch],[data-msearchclose],[data-msettings],[data-mmood],[data-mlibtab],[data-mlib],[data-mlibback],[data-mshuffle],[data-malbum],[data-malbumback],[data-mpl],[data-mplback],[data-mplnew],[data-mpldl]');
-    if (!t) return;
-    const d = t.dataset, list = mLists[d.mlist] || [];
-    if (d.malbum != null) {
-      const a = M.search && M.search.albums && M.search.albums[+d.malbum];
-      if (!a) return;
-      M.album = Object.assign({ loading: true }, a); musicDrawPage(); main.scrollTop = 0;
-      const r = await mCall('musicAlbum', a.id);
-      if (M.album && M.album.id === a.id) { M.album = r.error ? Object.assign({}, a, { error: r.error }) : r; musicDrawPage(); }
-      return;
-    }
-    if (d.malbumback != null) { M.album = null; musicDrawPage(); return; }
-    if (d.mpl) { musicOpenPlaylist(d.mpl); return; }
-    if (d.mplback != null) { M.plOpen = null; musicDrawPage(); return; }
-    if (d.mplnew != null) { musicNewPlaylist(); return; }
-    if (d.mpldl) {
-      const on = !(M.plOpen && M.plOpen.download);
-      try { MN.musicPlaylistDownload(d.mpldl, on); } catch (err) { return; }
-      if (M.plOpen) M.plOpen.download = on;
-      const p = (M.plists || []).find(x => x.id === d.mpldl); if (p) p.download = on;
-      toast(on ? 'Afspeellijst wordt gedownload' : 'Downloads van deze lijst verwijderd');
-      musicDrawPage(); return;
-    }
-    if (d.mview) { M.view = d.mview; M.searching = false; M.libOpen = null; M.plOpen = null; M.album = null; if (d.mview === 'bieb') { musicLoad('lib'); musicLoadPlaylists(); } musicDrawPage(); return; }
-    if (d.msearch != null) { M.searching = true; musicDrawPage(); return; }
-    if (d.msearchclose != null) { M.searching = false; M.q = ''; M.search = null; musicDrawPage(); return; }
-    if (d.mclear != null) { M.q = ''; M.search = null; musicDrawPage(); return; }
-    if (d.msettings != null) { musicSettings(); return; }
-    if (d.mlibtab) { M.libTab = d.mlibtab; musicDrawPage(); return; }
-    if (d.mlib) { M.libOpen = [d.mlib, d.mlibtitle || (LIB_LISTS[d.mlib] || [d.mlib])[0]]; musicDrawPage(); main.scrollTop = 0; return; }
-    if (d.mlibback != null) { M.libOpen = null; musicDrawPage(); return; }
-    if (d.mshuffle) { const l = (mLists[d.mshuffle] || []).slice().sort(() => Math.random() - 0.5); musicPlayList(l, 0); return; }
-    if (d.mmood != null) {
-      const i = +d.mmood, chips = M.home && M.home.chips;
-      if (!chips || !chips[i]) return;
-      const off = M.chip === i;
-      M.chip = off ? null : i;
-      M.home = Object.assign({}, M.home, { sections: [] });
-      musicDrawPage();
-      const r = off ? await mCall('musicHome') : await mCall('musicHomeChip', chips[i].params);
-      M.home = r.error ? r : Object.assign({}, r, { chips }); /* de chips zelf blijven staan */
-      musicDrawPage();
-      return;
-    }
-    if (d.mmenu != null) { e.stopPropagation(); const s = list[+d.mmenu]; if (s) musicMenu(s); return; }
-    if (d.mplay != null) musicPlayList(list, +d.mplay);
-  });
-  /* ---------- menu bij een nummer (drie puntjes), zoals in Metrolist ---------- */
-  function musicSheet(html, onClick) {
-    const old = sh.querySelector('.m-sheetbg'); if (old) old.remove();
-    const bg = document.createElement('div');
-    bg.className = 'm-sheetbg';
-    bg.innerHTML = `<div class="m-sheet"><i class="m-grab"></i>${html}</div>`;
-    app.appendChild(bg);
-    requestAnimationFrame(() => bg.classList.add('open'));
-    const close = () => { bg.classList.remove('open'); setTimeout(() => bg.remove(), 250); };
-    bg.addEventListener('click', e => { if (e.target === bg) return close(); const b = e.target.closest('[data-ma]'); if (b) { close(); onClick(b.dataset.ma, b); } });
-    return close;
-  }
-  function musicMenu(s) {
-    const act = (k, ic, l) => `<button class="m-act" data-ma="${k}">${MI[ic]}<span>${l}</span></button>`;
-    musicSheet(`<div class="m-row m-sheethead">${mArt(s)}<div class="m-t"><b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></div></div>
-      ${act('next', 'next2', 'Hierna afspelen')}${act('queue', 'queue', 'Aan wachtrij toevoegen')}${act('pl', 'plus', 'Aan afspeellijst toevoegen')}${act('radio', 'radio', 'Radio starten')}
-      ${act('like', 'heart', mLiked(s.id) ? 'Uit Leuk gevonden halen' : 'Leuk vinden')}${act('dl', mDled(s.id) ? 'dlOk' : 'dl', mDled(s.id) ? 'Download verwijderen' : 'Downloaden')}${act('share', 'share', 'Delen')}`, a => {
-      if (a === 'like') return musicToggleLike(s);
-      if (a === 'dl') return musicToggleDl(s);
-      if (a === 'pl') return musicAddToPlaylistSheet(s);
-      try { MN.musicSongAction(a, JSON.stringify(s)); } catch (e) { return; }
-      if (a === 'next') toast('Speelt hierna: ' + s.title);
-      if (a === 'queue') toast('Toegevoegd aan de wachtrij');
-      if (a === 'radio') { M.st = Object.assign({}, M.st || {}, { song: s, loading: true, playing: false, pos: 0 }); musicDrawBar(); toast('Radio gestart'); }
-    });
-  }
-  /* nummer aan een afspeellijst toevoegen (staat downloaden aan voor die lijst, dan wordt het nummer ook gedownload) */
-  async function musicAddToPlaylistSheet(s) {
-    if (!M.plists) { const r = await mCall('musicPlaylists'); if (!r.error) M.plists = r.playlists || []; }
-    const lists = (M.plists || []).filter(p => p.editable !== false);
-    const add = async (id, title) => {
-      const r = await mCall('musicAddToPlaylist', id, JSON.stringify(s));
-      if (r.error) return toast(r.error);
-      const p = (M.plists || []).find(x => x.id === id);
-      if (p) p.count++;
-      toast('Toegevoegd aan ' + (r.title || title) + (p && p.download ? ' (wordt gedownload)' : ''));
-      if (M.plOpen && M.plOpen.id === id) musicOpenPlaylist(id);
-    };
-    musicSheet(`<div class="setting-h m-sheettitle">Aan afspeellijst toevoegen</div>
-      <button class="m-act" data-ma="__new">${MI.plus}<span>Nieuwe afspeellijst</span></button>
-      ${lists.map(p => `<button class="m-act" data-ma="${esc(p.id)}">${MI.queue}<span>${esc(p.title)} <small class="muted">${p.count}${p.download ? ' · gedownload' : ''}</small></span></button>`).join('')}`, a => {
-      if (a === '__new') return musicNewPlaylist((id, title) => add(id, title));
-      const p = lists.find(x => x.id === a);
-      add(a, p ? p.title : '');
-    });
-  }
-  /* ---------- songtekst: tik op de hoes, of op de knop onderin de speler ---------- */
-  function parseLrc(text) {
-    const lines = [];
-    String(text || '').split(/\r?\n/).forEach(l => {
-      const m = l.match(/^\s*\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
-      if (m) lines.push({ t: +m[1] * 60 + +m[2], s: m[3].replace(/<[^>]*>/g, '').trim() });
-      else if (l.trim() && !/^\s*\[[a-z]+:/i.test(l)) lines.push({ t: null, s: l.trim() });
-    });
-    return lines;
-  }
-  async function musicLoadLyrics(s) {
-    if (!s || M.lyrics[s.id]) return;
-    M.lyrics[s.id] = { loading: true };
-    const r = await mCall('musicLyrics', JSON.stringify(s));
-    M.lyrics[s.id] = r.error ? { error: r.error } : { lines: r.lyrics ? parseLrc(r.lyrics) : [] };
-    if (M.playerOpen) musicDrawPlayer();
-  }
-  function lyricsHtml(s, pos) {
-    const L = M.lyrics[s.id];
-    if (!L || L.loading) return '<div class="m-lyrics"><p class="muted">Songtekst laden…</p></div>';
-    if (L.error) return `<div class="m-lyrics"><p class="muted">${esc(L.error)}</p></div>`;
-    if (!L.lines.length) return '<div class="m-lyrics"><p class="muted">Geen songtekst gevonden voor dit nummer.</p></div>';
-    const timed = L.lines.some(l => l.t != null);
-    let cur = -1;
-    if (timed) L.lines.forEach((l, i) => { if (l.t != null && l.t <= pos + 0.3) cur = i; });
-    return `<div class="m-lyrics${timed ? ' timed' : ''}">${L.lines.map((l, i) => `<p class="${i === cur ? 'now' : i < cur ? 'past' : ''}"${l.t != null ? ` data-mlt="${l.t}"` : ''}>${esc(l.s) || '♪'}</p>`).join('')}</div>`;
-  }
-  /* terug (knop of vegen): eerst één stap terug binnen de muziek */
-  function musicBack() {
-    const sheet = sh.querySelector('.m-sheetbg');
-    if (sheet) { sheet.remove(); return true; }
-    if (M.playerOpen) { if (M.showLyrics) { M.showLyrics = false; musicDrawPlayer(); } else musicClosePlayer(); return true; }
-    const set = sh.querySelector('.m-settings');
-    if (set) { set.remove(); if (S.tab === 'muziek') musicDrawPage(); return true; }
-    if (S.tab !== 'muziek') return false;
-    if (M.album) { M.album = null; musicDrawPage(); return true; }
-    if (M.plOpen) { M.plOpen = null; musicDrawPage(); return true; }
-    if (M.libOpen) { M.libOpen = null; musicDrawPage(); return true; }
-    if (M.searching) { M.searching = false; M.q = ''; M.search = null; musicDrawPage(); return true; }
-    return false;
-  }
-  async function musicQueueSheet() {
-    const r = await mCall('musicQueue');
-    if (r.error) return toast(r.error);
-    const items = r.items || [];
-    musicSheet(`<div class="setting-h m-sheettitle">Wachtrij <span class="muted small">${items.length} nummers</span></div><div class="m-qlist">${items.map((s, i) => `<button class="m-row${i === r.index ? ' on' : ''}" data-ma="${i}">${mArt(s)}<div class="m-t"><b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></div></button>`).join('')}</div>`,
-      a => { try { MN.musicQueueJump(+a); } catch (e) {} });
-    const on = sh.querySelector('.m-qlist .m-row.on'); if (on) on.scrollIntoView({ block: 'center' });
-  }
-  /* slaaptimer (zoals in Metrolist): na een aantal minuten of na dit nummer stoppen */
-  function musicSleepSheet() {
-    const cur = (M.st && M.st.sleep) || 0;
-    const opt = (v, l) => `<button class="m-act${cur === v || (v > 0 && cur > 0 && v === 0) ? ' on' : ''}" data-ma="${v}">${MI.moon}<span>${l}</span></button>`;
-    musicSheet(`<div class="setting-h m-sheettitle">Slaaptimer ${cur > 0 ? `<span class="muted small">nog ${cur} min</span>` : cur < 0 ? '<span class="muted small">na dit nummer</span>' : ''}</div>
-      ${opt(15, '15 minuten')}${opt(30, '30 minuten')}${opt(45, '45 minuten')}${opt(60, '1 uur')}${opt(-1, 'Na dit nummer')}${cur ? opt(0, 'Uitzetten') : ''}`, a => {
-      const v = +a;
-      try { MN.musicSleep(v); } catch (e) { return; }
-      if (M.st) M.st.sleep = v;
-      toast(v === 0 ? 'Slaaptimer uit' : v < 0 ? 'Stopt na dit nummer' : 'Stopt over ' + v + ' minuten');
-      if (M.playerOpen) musicDrawPlayer();
-    });
-  }
-  async function musicToggleDl(s) {
-    const on = !mDled(s.id);
-    try { MN.musicDownload(JSON.stringify(s), on); } catch (e) { return; }
-    toast(on ? 'Downloaden: ' + s.title : 'Download verwijderd');
-    if (!M.lib) M.lib = { liked: [], downloaded: [], recent: [] };
-    M.lib.downloaded = (M.lib.downloaded || []).filter(x => x.id !== s.id); if (on) M.lib.downloaded.unshift(s);
-    if (S.tab === 'muziek') musicDrawPage();
-    if (M.playerOpen) musicDrawPlayer();
-  }
-  function musicToggleLike(s) {
-    const on = !mLiked(s.id);
-    try { MN.musicLike(JSON.stringify(s), on); } catch (e) { return; }
-    if (!M.lib) M.lib = { liked: [], downloaded: [], recent: [] };
-    M.lib.liked = (M.lib.liked || []).filter(x => x.id !== s.id); if (on) M.lib.liked.unshift(s);
-    if (on) toast('Bewaard bij Leuk gevonden');
-    musicDrawBar();
-    if (M.playerOpen) musicDrawPlayer();
-    if (S.tab === 'muziek') musicDrawPage();
-  }
-  /* ---------- instellingen: alleen wat je in W.S.P nodig hebt ---------- */
-  async function musicSettings() {
-    mStyle();
-    const p = document.createElement('div');
-    p.className = 'panel m-settings';
-    app.appendChild(p);
-    let set = null;
-    const tg = (k, title, sub) => `<label class="toggle-row" style="padding:8px 0"><span><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" data-mset="${k}"${set && set[k] ? ' checked' : ''}><i class="toggle"></i></label>`;
-    const seg = (k, opts, cur) => `<div class="m-seg">${opts.map(([v, l]) => `<button class="${cur === v ? 'on' : ''}" data-mseg="${k}" data-v="${v}">${l}</button>`).join('')}</div>`;
-    const draw = () => {
-      const acc = M.acc || {};
-      p.innerHTML = `<div class="panel-h"><button class="ibtn" data-mx="close" aria-label="Terug">${MI.back}</button><h2 style="margin:0;flex:1;font:800 22px var(--f-display)">Muziek</h2></div>
-        <div class="card-box"><div class="setting-h">Account</div>
-          ${acc.loggedIn ? `<div class="m-accrow"><span class="m-avatar in">${esc((acc.name || '?').trim()[0].toUpperCase())}</span><div class="m-t"><b>${esc(acc.name || 'Ingelogd')}</b><span>${esc(acc.email || 'YouTube Music')}</span></div></div>
-            <p class="small muted">Je bibliotheek, mixes en aanbevelingen komen van je eigen YouTube Music-account.</p>
-            <button class="linkbtn red" data-mx="logout">Uitloggen</button>`
-          : `<p class="small muted" style="margin:0 0 10px">Zonder account werkt alles: zoeken, afspelen en downloaden. Log in voor je eigen bibliotheek, playlists, mixes en aanbevelingen.</p>
-            <button class="btn" data-mx="login" style="width:100%">Inloggen met YouTube Music</button>`}
-        </div>
-        <div class="card-box"><div class="setting-h">Muziektab</div>
-          <div class="lbl" style="margin-bottom:6px">Opent op</div>${seg('start', [['ontdek', 'Ontdekken'], ['bieb', 'Bibliotheek']], ls.get('cp:mStart', 'ontdek'))}
-          <div class="lbl" style="margin:12px 0 6px">Bibliotheek opent op</div>${seg('libstart', [['lijsten', 'Lijsten'], ['nummers', 'Nummers'], ['albums', 'Albums'], ['artiesten', 'Artiesten']], ls.get('cp:mLibStart', 'lijsten'))}</div>
-        <div class="card-box"><div class="setting-h">Inhoud</div>
-          ${set ? `${tg('hideExplicit', 'Expliciete nummers verbergen', 'Nummers met grof taalgebruik niet laten zien')}${tg('hideVideos', "Video's verbergen", 'Alleen echte nummers, geen muziekvideo\'s')}` : '<div class="muted small">Laden…</div>'}
-        </div>
-        <div class="card-box"><div class="setting-h">Afspelen</div>
-          ${set ? `<div class="lbl" style="margin-bottom:6px">Geluidskwaliteit</div>${seg('quality', [['AUTO', 'Automatisch'], ['HIGH', 'Hoog'], ['LOW', 'Laag']], set.quality)}
-          <p class="small muted" style="margin:6px 0 4px">Automatisch: hoog op wifi, zuiniger op 4G/5G.</p>
-          ${tg('normalize', 'Volume gelijk trekken', 'Elk nummer even hard')}${tg('skipSilence', 'Stiltes overslaan', 'Stille stukken aan het begin en eind overslaan')}
-          ${tg('crossfade', 'Nummers laten overvloeien', 'Het volgende nummer begint al terwijl het vorige zachter wordt')}
-          ${tg('autoRadio', 'Doorgaan met vergelijkbare muziek', 'Is de wachtrij op, dan gaat hij verder met nummers die erop lijken')}
-          ${tg('autoLoadMore', 'Lange lijsten verder laden', 'Bij een mix of radio komen er vanzelf nummers bij')}
-          ${tg('autoSkipOnError', 'Kapot nummer overslaan', 'Lukt een nummer niet, dan meteen door naar het volgende')}
-          ${tg('persistentQueue', 'Wachtrij onthouden', 'Na het afsluiten gaat hij verder waar je was')}
-          ${tg('rememberShuffle', 'Shuffle en herhalen onthouden', '')}
-          ${tg('resumeBluetooth', 'Verder spelen bij bluetooth', 'Verbind je een koptelefoon of speaker, dan speelt hij weer verder')}
-          ${tg('stopOnClear', 'Stoppen als je de app wegveegt', 'Anders blijft de muziek spelen')}` : '<div class="muted small">Laden…</div>'}
-        </div>
-        <div class="card-box"><div class="setting-h">Downloads en opslag</div>
-          ${set ? `${tg('autoDownloadOnLike', 'Downloaden bij Leuk vinden', 'Wat je leuk vindt, staat meteen offline klaar')}
-          <p class="small muted" style="margin:6px 0 2px">Zo klein mogelijk: alleen wat je zelf downloadt blijft op je telefoon. Wat je streamt wordt niet bewaard.</p>
-          ${set.cacheMb ? `<button class="linkbtn" data-mclr="cache">Oude tijdelijke opslag wissen <span class="muted" style="font-weight:500">· ${set.cacheMb} MB</span></button>` : ''}` : ''}
-        </div>
-        <div class="card-box"><div class="setting-h">Geschiedenis</div>
-          ${set ? `${tg('history', 'Luistergeschiedenis bijhouden', 'Voor Laatst geluisterd en betere aanbevelingen')}${tg('searchHistory', 'Zoekgeschiedenis bijhouden', '')}
-          <button class="linkbtn" data-mclr="listen">Luistergeschiedenis wissen</button><button class="linkbtn" data-mclr="search">Zoekgeschiedenis wissen</button>` : ''}
-        </div>
-        <p class="small muted" style="text-align:center">Gemaakt met Metrolist · zie Meer → Over W.S.P</p>`;
-    };
-    draw();
-    p.addEventListener('click', async e => {
-      const b = e.target.closest('[data-mx],[data-mseg],[data-mclr]');
-      if (!b) return;
-      if (b.dataset.mclr) {
-        const w = b.dataset.mclr, names = { cache: 'tijdelijk bewaarde nummers', listen: 'je luistergeschiedenis', search: 'je zoekgeschiedenis' };
-        if (!await mAsk('Wissen?', { text: 'Weet je zeker dat je ' + names[w] + ' wilt wissen?', ok: 'Wissen' })) return;
-        await mCall('musicClear', w);
-        if (w === 'cache') set.cacheMb = 0;
-        if (w === 'listen' && M.lib) M.lib.recent = [];
-        toast('Gewist'); draw(); return;
-      }
-      if (b.dataset.mseg === 'libstart') { ls.set('cp:mLibStart', b.dataset.v); M.libTab = b.dataset.v; draw(); return; }
-      if (b.dataset.mx === 'close') { p.remove(); if (S.tab === 'muziek') musicDrawPage(); return; }
-      if (b.dataset.mx === 'login') { try { MN.musicLogin(); } catch (err) {} return; }
-      if (b.dataset.mx === 'logout') { await mCall('musicLogout'); M.acc = { loggedIn: false }; M.home = null; M.lib = null; draw(); musicLoad('home'); toast('Uitgelogd'); return; }
-      if (b.dataset.mseg === 'start') { ls.set('cp:mStart', b.dataset.v); M.view = b.dataset.v; draw(); return; }
-      if (b.dataset.mseg === 'quality') { set.quality = b.dataset.v; try { MN.musicSetSetting('quality', b.dataset.v); } catch (err) {} draw(); }
-    });
-    p.addEventListener('change', e => {
-      const c = e.target.closest('[data-mset]');
-      if (!c || !set) return;
-      set[c.dataset.mset] = c.checked;
-      try { MN.musicSetSetting(c.dataset.mset, String(c.checked)); } catch (err) {}
-    });
-    const [s, a] = await Promise.all([mCall('musicGetSettings'), mCall('musicAccount')]);
-    if (!s.error) set = s;
-    if (!a.error) M.acc = a;
-    if (p.isConnected) draw();
-  }
-  /* ---------- minispeler: pil met ronde hoes en voortgangsring (zoals Metrolist), op elk tabblad ---------- */
-  function musicDrawBar() {
-    let bar = sh.querySelector('.m-bar');
-    const s = mCur();
-    if (!s) { if (bar) bar.remove(); return; }
-    mStyle();
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.className = 'm-bar';
-      app.insertBefore(bar, sh.querySelector('nav.tabs'));
-      bar.addEventListener('click', e => {
-        const b = e.target.closest('[data-mc],[data-mbarlike]');
-        if (b && b.dataset.mbarlike != null) { e.stopPropagation(); const c = mCur(); if (c) musicToggleLike(c); return; }
-        if (b) { e.stopPropagation(); musicCmd(b.dataset.mc); return; }
-        musicOpenPlayer();
-      });
-    }
-    const st = M.st, pct = st.dur ? Math.min(100, st.pos / st.dur * 100) : 0;
-    bar.classList.toggle('paused', !st.playing);
-    bar.innerHTML = `<span class="m-ring" style="--p:${pct}%">${mArt(s)}</span><div class="m-t"><b>${esc(s.title)}</b><span>${st.loading ? 'Laden…' : esc(s.artist || '')}</span></div>
-      <button class="m-circ${mLiked(s.id) ? ' on' : ''}" data-mbarlike aria-label="Leuk gevonden">${MI.heart}</button>
-      <button class="m-circ play" data-mc="toggle" aria-label="Afspelen of pauzeren">${st.loading ? '<i class="m-spin"></i>' : st.playing ? MI.pause : MI.play}</button>`;
-  }
-  function musicCmd(c, arg) {
-    try { MN.musicCmd(c, arg == null ? '' : String(arg)); } catch (e) {}
-    if (c === 'toggle' && M.st) { M.st.playing = !M.st.playing; musicDrawBar(); if (M.playerOpen) musicDrawPlayer(); }
-  }
-  function musicOpenPlayer() {
-    let p = sh.querySelector('.m-player');
-    if (!p) {
-      p = document.createElement('div');
-      p.className = 'm-player';
-      app.appendChild(p);
-      p.addEventListener('click', e => {
-        const b = e.target.closest('[data-mc],[data-mx],[data-mseek]');
-        if (!b) return;
-        const s = mCur();
-        if (b.dataset.mx === 'close') return musicClosePlayer();
-        if (b.dataset.mx === 'like' && s) return musicToggleLike(s);
-        if (b.dataset.mx === 'dl' && s) return musicToggleDl(s);
-        if (b.dataset.mx === 'menu' && s) return musicMenu(s);
-        if (b.dataset.mx === 'queue') return musicQueueSheet();
-        if (b.dataset.mx === 'sleep') return musicSleepSheet();
-        if (b.dataset.mx === 'lyr') {
-          /* op een regel van de songtekst tikken = naar dat stukje springen */
-          const line = e.target.closest('[data-mlt]');
-          if (M.showLyrics && line) { const sec = +line.dataset.mlt; if (M.st) M.st.pos = sec; musicCmd('seek', Math.round(sec * 1000)); return musicDrawPlayer(); }
-          M.showLyrics = !M.showLyrics;
-          if (M.showLyrics && s) musicLoadLyrics(s);
-          return musicDrawPlayer();
-        }
-        if (b.dataset.mseek != null && M.st && M.st.dur) { const r = b.getBoundingClientRect(), sec = Math.round((e.clientX - r.left) / r.width * M.st.dur); M.st.pos = sec; musicCmd('seek', sec * 1000); return musicDrawPlayer(); }
-        if (b.dataset.mc) musicCmd(b.dataset.mc);
-      });
-    }
-    M.playerOpen = true;
-    musicDrawPlayer();
-    requestAnimationFrame(() => p.classList.add('open'));
-  }
-  function musicClosePlayer() {
-    const p = sh.querySelector('.m-player');
-    M.playerOpen = false;
-    if (p) { p.classList.remove('open'); setTimeout(() => { if (!M.playerOpen) p.remove(); }, 300); }
-  }
-  function musicDrawPlayer() {
-    const p = sh.querySelector('.m-player'), s = mCur();
-    if (!p || !s) return;
-    const st = M.st, pct = st.dur ? Math.min(100, st.pos / st.dur * 100) : 0;
-    p.innerHTML = `<div class="panel-h"><button class="ibtn" data-mx="close" aria-label="Sluiten">${MI.down}</button><span class="m-now">NU AAN HET SPELEN<b>${st.queueLen > 1 ? 'Nummer ' + ((st.index || 0) + 1) + ' van ' + st.queueLen : esc(s.album || s.artist || '')}</b></span><button class="ibtn" data-mx="menu" aria-label="Meer">${MI.more}</button></div>
-      ${M.showLyrics ? `<div class="m-cover m-lyrbox" data-mx="lyr">${lyricsHtml(s, st.pos)}</div>` : `<div class="m-cover" data-mx="lyr" title="Tik voor de songtekst">${mArt(s, 'huge')}</div>`}
-      <div class="m-ptitle"><div class="m-t"><b>${esc(s.title)}</b><span>${esc(s.artist || '')}</span></div>
-        <button class="ibtn${mLiked(s.id) ? ' m-on' : ''}" data-mx="like" aria-label="Leuk gevonden">${MI.heart}</button></div>
-      <div class="m-seek" data-mseek><div class="m-track"><i style="width:${pct}%"></i><b style="left:${pct}%"></b></div></div>
-      <div class="m-times"><span>${mFmt(st.pos)}</span><span>${st.loading ? 'laden…' : mFmt(st.dur)}</span></div>
-      <div class="m-ctrl"><button class="m-ib${st.shuffle ? ' m-on' : ''}" data-mc="shuffle" aria-label="Shuffle">${MI.shuffle}</button>
-        <button class="m-ib m-mid" data-mc="prev" aria-label="Vorige">${MI.prev}</button>
-        <button class="m-playbtn" data-mc="toggle" aria-label="Afspelen of pauzeren">${st.loading ? '<i class="m-spin"></i>' : st.playing ? MI.pause : MI.play}</button>
-        <button class="m-ib m-mid" data-mc="next" aria-label="Volgende">${MI.next}</button>
-        <button class="m-ib${st.repeat ? ' m-on' : ''}" data-mc="repeat" aria-label="Herhalen">${MI.repeat}</button></div>
-      <div class="m-pfoot"><button class="m-ib${mDled(s.id) ? ' m-on' : ''}" data-mx="dl" aria-label="Downloaden">${mDled(s.id) ? MI.dlOk : MI.dl}</button>
-        <button class="m-ib${M.showLyrics ? ' m-on' : ''}" data-mx="lyr" aria-label="Songtekst">${MI.lyrics}</button>
-        <button class="m-ib${st.sleep ? ' m-on' : ''}" data-mx="sleep" aria-label="Slaaptimer">${MI.moon}${st.sleep > 0 ? `<small class="m-sleepn">${st.sleep}</small>` : ''}</button>
-        <button class="m-ib" data-mx="queue" aria-label="Wachtrij">${MI.queue}</button></div>`;
-    /* songtekst: de regel van nu in het midden houden */
-    const now = M.showLyrics && p.querySelector('.m-lyrics p.now'), box = now && p.querySelector('.m-lyrbox');
-    if (now && box) box.scrollTop = now.offsetTop - box.clientHeight / 2 + now.offsetHeight / 2;
-  }
-  /* tijdbalk bijhouden terwijl er muziek speelt (de app stuurt niet elke seconde een seintje) */
-  setInterval(() => {
-    if (!MUSIC || !M.st || !M.st.playing || M.st.loading) return;
-    if (MN.musicState) { try { const j = MN.musicState(); if (j) { M.st = JSON.parse(j); } } catch (e) {} }
-    musicDrawBar();
-    if (M.playerOpen) musicDrawPlayer();
-  }, 1000);
-  const MUSIC_CSS = `
-  .m-page { gap: 14px; }
-  .m-pad { padding: 8px 2px; }
-  .m-top { display: flex; align-items: center; gap: 2px; margin-bottom: -2px; }
-  .m-top .m-chips { flex: 1; display: flex; gap: 8px; }
-  .m-chip { appearance: none; flex-shrink: 0; border: 1px solid var(--line); background: var(--surface); color: var(--fg2); font: 600 14px var(--f-body); padding: 8px 14px; border-radius: 10px; }
-  .app.light .m-chip { border-color: transparent; box-shadow: var(--sh-sm); }
-  .m-chip.on { background: color-mix(in srgb, var(--accent) 24%, var(--surface)); color: var(--fg); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
-  .m-chiprow { display: flex; gap: 8px; overflow-x: auto; margin: 0 -20px; padding: 0 20px 2px; scrollbar-width: none; }
-  .m-chiprow::-webkit-scrollbar { display: none; }
-  .m-avatar { appearance: none; border: 0; width: 34px; height: 34px; margin-left: 4px; border-radius: 50%; background: var(--surface2); color: var(--fg2); display: inline-grid; place-items: center; font: 800 15px var(--f-display); flex-shrink: 0; }
-  .m-avatar.in { background: var(--accent); color: var(--ink); }
-  .m-avatar svg { width: 18px; height: 18px; }
-  .m-search { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 28px; padding: 0 6px; height: 52px; }
-  .app.light .m-search { border-color: transparent; box-shadow: var(--sh-sm); }
-  .m-search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--fg); font: 600 16px var(--f-body); outline: none; }
-  .m-search input::-webkit-search-cancel-button { display: none; }
-  .m-h { font: 800 20px var(--f-display); letter-spacing: -.02em; margin: 6px 2px -4px; display: flex; align-items: center; gap: 8px; }
-  .m-all { margin-left: auto; appearance: none; border: 1px solid var(--line); background: none; color: var(--fg); font: 700 12px var(--f-body); border-radius: 999px; padding: 6px 11px 6px 8px; display: inline-flex; align-items: center; gap: 4px; }
-  .m-all svg { width: 14px; height: 14px; }
-  .m-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-auto-columns: 86%; column-gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -20px; padding: 0 20px; scrollbar-width: none; }
-  .m-grid::-webkit-scrollbar { display: none; }
-  .m-grid .m-row { scroll-snap-align: start; border-bottom: 0; }
-  .m-list { padding: 8px 6px 4px 14px; }
-  .m-row { appearance: none; width: 100%; border: 0; background: none; color: var(--fg); text-align: left; display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; min-width: 0; }
-  .m-row:last-child { border-bottom: 0; }
-  .m-row:active { opacity: .7; }
-  .m-art { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; object-fit: cover; display: inline-grid; place-items: center; color: rgba(255,255,255,.9); font: 800 18px var(--f-display); background: var(--surface2); }
-  .m-art.big { width: 140px; height: 140px; border-radius: 12px; font-size: 46px; }
-  .m-art.huge { width: 100%; height: 100%; border-radius: 22px; font-size: 96px; }
-  .m-art.tilebox { width: 100%; height: auto; aspect-ratio: 1; border-radius: 10px; font-size: 38px; }
-  .m-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .m-t b { font: 700 15px var(--f-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-t span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
-  .m-row.on .m-t b { color: var(--accent-text); }
-  .m-ok svg, .m-like svg { width: 13px; height: 13px; display: block; }
-  .m-ok svg { color: var(--good); }
-  .m-like svg { color: var(--red); fill: currentColor; }
-  .m-ib { appearance: none; border: 0; background: none; color: var(--fg2); width: 40px; height: 40px; border-radius: 12px; display: inline-grid; place-items: center; flex-shrink: 0; }
-  .m-ib svg { width: 21px; height: 21px; }
-  .m-ib:active { background: var(--surface2); }
-  .m-cards { display: flex; gap: 12px; overflow-x: auto; margin: 0 -20px; padding: 0 20px; scrollbar-width: none; }
-  .m-cards::-webkit-scrollbar { display: none; }
-  .m-card { appearance: none; border: 0; background: none; color: var(--fg); text-align: left; width: 140px; flex-shrink: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
-  .m-card b { font: 700 14px var(--f-body); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-card span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px 12px; }
-  .m-tile { appearance: none; border: 0; background: none; color: var(--fg); text-align: left; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .m-tile .m-tbox { aspect-ratio: 1; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; color: var(--accent-text); }
-  .app.light .m-tile .m-tbox { border-color: transparent; box-shadow: var(--sh-sm); }
-  .m-tile .m-tbox svg { width: 44%; height: 44%; }
-  .m-tile.round .m-art { border-radius: 50%; }
-  .m-tile b { font: 700 14px var(--f-body); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-tile.round b, .m-tile.round span { text-align: center; }
-  .m-tile span { font-size: 12px; color: var(--muted); }
-  .m-subhead { display: flex; align-items: center; gap: 6px; margin-left: -8px; }
-  .m-subhead b { font: 800 20px var(--f-display); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-acts { display: flex; align-items: center; justify-content: center; gap: 14px; }
-  .m-bigplay { appearance: none; border: 0; width: 56px; height: 56px; border-radius: 18px; background: var(--accent); color: var(--ink); display: grid; place-items: center; }
-  .m-bigplay svg { width: 26px; height: 26px; }
-  .m-skel, .m-skel .m-art, .m-skel b, .m-skel span { color: transparent !important; animation: mpulse 1.2s ease-in-out infinite; }
-  .m-skel .m-art, .m-skel b, .m-skel span { background: var(--surface2); border-radius: 6px; }
-  @keyframes mpulse { 50% { opacity: .45; } }
-  .m-credit { text-align: center; margin-top: 4px; }
-  .m-bar { flex-shrink: 0; position: relative; display: flex; align-items: center; gap: 10px; margin: 0 10px 8px; padding: 5px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
-  .app.light .m-bar { border-color: transparent; box-shadow: var(--sh); }
-  .m-ring { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; background: conic-gradient(var(--accent) var(--p), var(--surface2) 0); }
-  .m-ring .m-art { width: 44px; height: 44px; border-radius: 50%; animation: mspin 14s linear infinite; }
-  .m-bar.paused .m-ring .m-art { animation-play-state: paused; }
-  @keyframes mspin { to { transform: rotate(360deg); } }
-  .m-circ { appearance: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--fg); display: grid; place-items: center; flex-shrink: 0; }
-  .m-circ svg { width: 20px; height: 20px; }
-  .m-circ.on { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
-  .m-circ.on svg { fill: currentColor; }
-  .m-circ.play { background: var(--accent); color: var(--ink); border-color: transparent; }
-  .m-spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: rot .8s linear infinite; display: block; }
-  .m-player { position: absolute; inset: 0; z-index: 46; background: var(--bg); display: flex; flex-direction: column; padding: 18px 24px 22px; gap: 12px; transform: translateY(100%); transition: transform .32s cubic-bezier(.2, .8, .2, 1); }
-  .m-player.open { transform: none; }
-  .m-now { flex: 1; text-align: center; font: 700 11px var(--f-mono); letter-spacing: .08em; color: var(--muted); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .m-now b { font: 700 13px var(--f-body); letter-spacing: 0; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-cover { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
-  .m-cover .m-art { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); box-shadow: 0 18px 40px rgb(0 0 0 / .25); }
-  .m-ptitle { display: flex; align-items: center; gap: 12px; }
-  .m-ptitle .m-t b { font: 800 24px/1.15 var(--f-display); letter-spacing: -.02em; }
-  .m-ptitle .m-t span { font-size: 15px; }
-  .ibtn.m-on, .m-ib.m-on { color: var(--accent-text); }
-  .ibtn.m-on svg { fill: currentColor; }
-  .m-seek { padding: 10px 0; cursor: pointer; }
-  .m-track { position: relative; height: 5px; border-radius: 3px; background: var(--surface2); }
-  .m-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--accent); }
-  .m-track b { position: absolute; top: 50%; width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; border-radius: 50%; background: var(--accent); }
-  .m-times { display: flex; justify-content: space-between; font: 600 12px var(--f-mono); color: var(--muted); margin-top: -6px; }
-  .m-ctrl { display: flex; align-items: center; justify-content: space-between; }
-  .m-ctrl .m-mid svg { width: 28px; height: 28px; }
-  .m-ctrl .m-ib { color: var(--fg); }
-  .m-ctrl .m-ib.m-on { color: var(--accent-text); }
-  .m-playbtn { appearance: none; border: 0; width: 72px; height: 72px; border-radius: 24px; background: var(--accent); color: var(--ink); display: grid; place-items: center; }
-  .m-playbtn svg { width: 32px; height: 32px; }
-  .m-playbtn:active { transform: scale(.95); }
-  .m-pfoot { display: flex; justify-content: space-around; }
-  .m-cover[data-mx] { cursor: pointer; }
-  .m-ask { padding: 2px 14px 4px; display: flex; flex-direction: column; gap: 10px; }
-  .m-ask .setting-h { margin: 0; }
-  .m-ask p { margin: -4px 0 0; }
-  .m-askin { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 12px; padding: 13px 14px; font: 600 16px var(--f-body); outline: none; }
-  .m-askin:focus { border-color: var(--accent); }
-  .m-askbtns { display: flex; gap: 10px; }
-  .m-askbtns .btn { flex: 1; }
-  .m-settings ~ .m-sheetbg, .m-sheetbg { z-index: 60; }
-  .m-lyrbox { display: block; overflow-y: auto; scroll-behavior: smooth; padding: 30% 4px; mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
-  .m-lyrics p { margin: 0 0 14px; font: 800 22px/1.3 var(--f-display); letter-spacing: -.01em; color: var(--fg); }
-  .m-lyrics.timed p { color: var(--muted); transition: color .3s; }
-  .m-lyrics.timed p.past { color: color-mix(in srgb, var(--muted) 70%, transparent); }
-  .m-lyrics.timed p.now { color: var(--accent-text); }
-  .m-lyrics p.muted { font: 600 15px var(--f-body); color: var(--muted); text-align: center; }
-  .m-collhead { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; margin-top: -6px; }
-  .m-collhead .m-art.cover { width: 190px; height: 190px; border-radius: 16px; font-size: 64px; box-shadow: 0 12px 30px rgb(0 0 0 / .2); margin-bottom: 8px; }
-  .m-collhead .m-tboxart svg { width: 40%; height: 40%; color: var(--accent-text); }
-  .m-collhead b { font: 800 22px var(--f-display); letter-spacing: -.02em; }
-  .m-collhead span { font-size: 13px; color: var(--muted); }
-  .m-dltoggle { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 700 13px var(--f-body); border-radius: 999px; padding: 9px 14px; display: inline-flex; align-items: center; gap: 6px; }
-  .m-dltoggle svg { width: 16px; height: 16px; }
-  .m-dltoggle.on { background: color-mix(in srgb, var(--good) 18%, var(--surface)); color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
-  .m-dlnote { text-align: center; margin: -6px 0 0; }
-  .m-collage { display: grid !important; grid-template-columns: 1fr 1fr; overflow: hidden; padding: 0; }
-  .m-collage img, .m-tboximg { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .m-tile .m-tbox { overflow: hidden; }
-  .m-tile .m-new svg { color: var(--fg2); }
-  .m-pfoot .m-ib { position: relative; }
-  .m-sleepn { position: absolute; right: 2px; top: 2px; font: 700 10px var(--f-mono); color: var(--accent-text); }
-  .m-sheetbg { position: absolute; inset: 0; z-index: 60; background: rgb(0 0 0 / 0); transition: background .25s; display: flex; align-items: flex-end; }
-  .m-sheetbg.open { background: rgb(0 0 0 / .45); }
-  .m-sheet { width: 100%; max-height: 80%; overflow-y: auto; background: var(--surface); border-radius: 24px 24px 0 0; padding: 8px 8px 22px; transform: translateY(100%); transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
-  .m-sheetbg.open .m-sheet { transform: none; }
-  .m-grab { display: block; width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 10px; }
-  .m-sheethead { padding: 4px 12px 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; cursor: default; }
-  .m-sheettitle { padding: 2px 12px 6px; }
-  .m-qlist .m-row { padding: 7px 12px; }
-  .m-act { appearance: none; width: 100%; border: 0; background: none; color: var(--fg); display: flex; align-items: center; gap: 16px; padding: 13px 16px; border-radius: 12px; font: 600 15px var(--f-body); text-align: left; }
-  .m-act:active { background: var(--surface2); }
-  .m-act svg { width: 22px; height: 22px; color: var(--fg2); }
-  .m-settings { z-index: 50; }
-  .m-accrow { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-  .m-accrow .m-avatar { width: 44px; height: 44px; font-size: 19px; margin: 0; }
-  .m-seg { display: flex; gap: 6px; background: var(--surface2); border-radius: 12px; padding: 4px; }
-  .m-seg button { flex: 1; appearance: none; border: 0; background: none; color: var(--muted); font: 700 13px var(--f-body); padding: 9px 0; border-radius: 9px; }
-  .m-seg button.on { background: var(--accent); color: var(--ink); }
-  `;
-
-  /* welke tabbladen je eerder open had: de terugknop gaat daar stap voor stap naartoe terug */
+  /* welke tabbladen je eerder open had: de terugknop gaat daar stap voor stap naartoe terug
+     (elk tabblad maar één keer in de lijst, het laatst bezochte achteraan, zodat terug niet heen en weer springt) */
   const tabHist = [];
+  const histDrop = t => { const i = tabHist.indexOf(t); if (i >= 0) tabHist.splice(i, 1); };
   function go(tab, back) {
     if (tab === 'packs') tab = 'cijfers'; /* oude naam (meldingen): nieuwe cijfers staan nu bij Cijfers */
-    /* elk tabblad maar één keer in de lijst (het laatst bezochte achteraan), zodat terug niet heen en weer blijft springen */
-    if (!back && S.tab && S.tab !== tab) {
-      const i = tabHist.indexOf(S.tab);
-      if (i >= 0) tabHist.splice(i, 1);
-      tabHist.push(S.tab);
-    }
-    if (!back) { const j = tabHist.indexOf(tab); if (j >= 0) tabHist.splice(j, 1); }
+    /* het huidige tabblad staat nooit in de lijst: het nieuwe eruit, het oude achteraan erbij */
+    if (!back) { histDrop(tab); if (S.tab && S.tab !== tab) { histDrop(S.tab); tabHist.push(S.tab); } }
     app.classList.remove('immersive');
     if (tab === 'cijfers') S.ovPeriod = null; /* Cijfers opent altijd op de huidige periode */
     /* schuifovergang: het oude scherm schuift weg, het nieuwe komt van de kant van het tabblad binnen */
@@ -2551,27 +2009,115 @@
   }
   function render() {
     updateNav();
-    const f = { cijfers: renderGrades, huiswerk: renderHomework, rooster: renderRooster, meer: renderMore, muziek: renderMusic }[S.tab];
+    const f = { cijfers: renderGrades, huiswerk: renderHomework, rooster: renderRooster, meer: renderMore }[S.tab];
     f();
     const t = S.tab;
   }
   function spinning(on) { refreshBtn.classList.toggle('spin', !!on); }
 
+  /* Ben je echt uitgelogd bij school? Eén keer los navragen bij het portaal. Een enkele mislukte aanvraag (bijv. net
+     na het inloggen, terwijl het portaal de login nog afrondt) is nog geen uitloggen. Geen internet: niet zeker, dus nee */
+  async function reallyLoggedOut() {
+    if (DEMO) return true;
+    try {
+      let r = await fetch(P_CIJFERS, { credentials: 'same-origin', cache: 'no-store', redirect: 'manual' });
+      if (r.status === 401) return true;
+      if (r.type === 'opaqueredirect') {
+        /* een doorverwijzing binnen het portaal zelf is geen uitloggen; alleen naar een ander adres (de inlogpagina).
+           fetch mag niet naar een ander adres volgen en geeft dan een fout: dat is dus de inlogpagina */
+        try { r = await fetch(P_CIJFERS, { credentials: 'same-origin', cache: 'no-store' }); } catch (e) { return navigator.onLine !== false; }
+        if (new URL(r.url).hostname !== HOST) return true;
+      }
+      if (!r.ok) return false; /* bijv. 403 of 500: het portaal hapert, dat is nog geen uitloggen */
+      /* dezelfde toets als bij het ophalen: geen gewone portaalpagina (bijv. "sessie verlopen" op het portaal zelf) = uitgelogd */
+      const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+      return !doc.querySelector('.wp3-portal-main, .main-content');
+    } catch (e) { return false; }
+  }
+  /* één gedeelde controle: tegelijk vragen geeft één aanvraag, en het antwoord geldt een minuut (ook "toch ingelogd") */
+  function checkOut() {
+    const c = S.outCheck;
+    if (c && (c.out === undefined || Date.now() - c.at < 60000)) return c.p;
+    const n = S.outCheck = { at: Date.now() };
+    n.p = reallyLoggedOut().then(out => { n.out = out; n.at = Date.now(); return out; });
+    return n.p;
+  }
+  /* uitgelogd op het tabblad dat je bekijkt: eerst navragen, dan het scherm "Je bent uitgelogd" met een knop.
+     Nooit meer vanzelf naar de inlogpagina springen: altijd eerst vragen */
   function loginScreen() {
-    /* snelstart (lege pagina): de sessie bleek verlopen. Dan één keer zelf het echte portaal laden; Microsoft
-       logt je daar meestal stil opnieuw in, net als vroeger bij het opstarten */
-    if (window.__cpShell && !S.autoRelogin && navigator.onLine !== false && Native) {
-      S.autoRelogin = true;
-      main.innerHTML = loading('Opnieuw verbinden…');
-      return relogin();
-    }
     app.classList.remove('immersive');
+    const tab = S.tab, c = S.outCheck, fresh = c && c.out !== undefined && Date.now() - c.at < 60000;
+    if (!fresh) {
+      main.innerHTML = loading('Even kijken…');
+      checkOut().then(out => {
+        if (S.tab !== tab) return;
+        if (out) loginScreen();
+        else { S.schoolOut = false; render(); } /* toch ingelogd: gewoon opnieuw laden */
+      });
+      return;
+    }
+    if (!c.out) {
+      /* net nagevraagd en je bent wel ingelogd, maar het portaal doet toch raar: niet zeggen dat je uitgelogd bent */
+      S.schoolOut = false;
+      main.innerHTML = `<div class="center">${errBox('Het portaal gaf een onverwacht antwoord. Probeer het zo opnieuw.')}</div>`;
+      return;
+    }
+    S.schoolOut = true;
     main.innerHTML = `<div class="center"><h2>Je bent uitgelogd</h2>
       <p class="muted">Log opnieuw in met je schoolaccount. De app slaat je wachtwoord niet op.</p>
       <button class="btn" data-a="login">Opnieuw inloggen</button></div>`;
     main.querySelector('[data-a=login]').onclick = relogin;
   }
   function relogin() { if (Native) Native.relogin(); else location.href = P_CIJFERS; }
+  /* Twee aparte logins, elk met een eigen vraag om opnieuw in te loggen:
+     - uitgelogd bij het leerlingportaal (school): alleen daar opnieuw inloggen; Zermelo blijft gekoppeld
+     - uitgelogd bij Zermelo: alleen bij Zermelo opnieuw inloggen; de login bij school blijft staan */
+  function loggedOut() { setTimeout(promptLogin, 0); return new Error('login'); }
+  function reloginSheet(cls, title, text, btn, onLogin) {
+    const m = document.createElement('div');
+    m.className = 'modal ' + cls;
+    m.innerHTML = `<div class="sheet"><h3>${esc(title)}</h3><p class="small" style="color:var(--fg2)">${esc(text)}</p>
+      <p class="small muted">De app slaat je wachtwoord niet op.</p>
+      <div class="row"><button class="btn ghost" data-a="later" style="flex:1">Later</button><button class="btn" data-a="login" style="flex:1">${esc(btn)}</button></div></div>`;
+    m.querySelector('[data-a=later]').onclick = () => m.remove();
+    m.querySelector('[data-a=login]').onclick = () => { m.remove(); onLogin(); };
+    app.appendChild(m);
+  }
+  async function promptLogin(sim) {
+    /* één keer per keer openen; staat het inlogscherm van het tabblad al open, dan niet nog een venster erover.
+       sim: vanuit de ontwikkelaarsopties (ook in de preview). Altijd eerst vragen, nooit vanzelf naar de inlogpagina */
+    if ((DEMO && !sim) || S.loginAsked || sh.querySelector('.modal.relog') || main.querySelector('.center [data-a=login]')) return;
+    S.loginAsked = true;
+    /* eerst navragen of je echt bent uitgelogd (geen vals alarm, bijv. net na het inloggen) */
+    if (!sim && !(await checkOut())) { S.loginAsked = false; S.schoolOut = false; return; }
+    /* bevestigd: het vakje bovenaan het rooster laten zien. Alleen opnieuw tekenen als het rooster uit Zermelo komt;
+       Huiswerk (en een rooster uit het portaal) laat zelf al het scherm "Je bent uitgelogd" zien, dan geen venster erover */
+    S.schoolOut = true;
+    if (S.tab === 'rooster' && zm && !S.zmNeedLogin && !sh.querySelector('.modal, .panel, .ov')) render();
+    if (sh.querySelector('.modal.relog') || main.querySelector('.center [data-a=login]')) return;
+    reloginSheet('relog', 'Opnieuw inloggen bij school',
+      'Je bent uitgelogd bij het leerlingportaal. Log opnieuw in om je cijfers en huiswerk bij te werken.' + (zm ? ' Je Zermelo-rooster blijft gewoon gekoppeld.' : ''),
+      'Inloggen', relogin);
+  }
+  /* opnieuw inloggen bij alleen Zermelo: via je schoolaccount het Zermelo-venster (niet stil); met een code opnieuw koppelen */
+  function zmRelogin() {
+    if (zm && zm.sso && Native && Native.zermeloSso) { S.zmRenewing = true; zermeloSso(false).catch(e => { S.zmRenewing = false; toast(e.message); }); }
+    else zermeloSheet();
+  }
+  function promptZermelo(sim) {
+    if ((DEMO && !sim) || (!zm && !sim) || S.zmLoginAsked || sh.querySelector('.modal.relogzm')) return;
+    S.zmLoginAsked = true;
+    reloginSheet('relogzm', 'Opnieuw inloggen bij Zermelo',
+      'Je login bij Zermelo is verlopen, daardoor kan je rooster uit Zermelo niet worden bijgewerkt. Je login bij school blijft gewoon staan.',
+      'Inloggen bij Zermelo', zmRelogin);
+  }
+  /* blijvend vakje bovenaan Rooster en Huiswerk zolang je ergens uitgelogd bent; tik = opnieuw inloggen (alleen daar) */
+  function outBar() {
+    let h = '';
+    if ((zm || DEMO) && S.zmNeedLogin) h +=`<button class="outbar" data-a="relogzm"><b>Uitgelogd bij Zermelo</b><span>Tik om opnieuw in te loggen ›</span></button>`;
+    if (S.schoolOut) h += `<button class="outbar" data-a="relogschool"><b>Uitgelogd bij school</b><span>Tik om opnieuw in te loggen ›</span></button>`;
+    return h;
+  }
   function errBox(e) { return `<div class="err">${esc(e && e.message ? e.message : e)}</div>`; }
   /* lege toestand met een rustig lijn-icoontje (geen emoji) */
   const EMPTY_ICON = {
@@ -3108,15 +2654,19 @@
     }
   };
   async function refreshWeek(name, key, mon) {
-    S.fresh[name + key] = 1;
+    S.fresh[name + key] = Date.now();
     const isR = name === 'r', tab = isR ? 'rooster' : 'huiswerk';
     try {
       const v = isR ? await loadRooster(mon) : await loadHomework(mon);
+      /* onzeker leeg huiswerk: wat er al stond niet overschrijven, niet bewaren, en over een minuut weer mogen kijken */
+      if (v.unsure) { S.fresh[name + key] = Date.now() - 9 * 60000; if ((S.hw)[key]) return null; }
       const same = JSON.stringify(v) === JSON.stringify((isR ? S.rooster : S.hw)[key]);
       (isR ? S.rooster : S.hw)[key] = v;
-      weekCache.set(name, key, v);
+      if (!v.unsure) weekCache.set(name, key, v);
       if (isR) pushWidget();
       const onIt = S.tab === tab && (isR ? S.rMonday : S.hwMonday).getTime() === key;
+      /* je kijkt al naar deze huiswerkweek: wat er net binnenkwam telt niet mee voor het getalletje (ook als er een venster open staat) */
+      if (!isR && onIt) { const p = hwPending(); Object.keys(p).forEach(id => { if (p[id] === key) delete p[id]; }); setHwPending(p); }
       if (!same && onIt && !sh.querySelector('.modal, .panel, .ov')) (isR ? renderRooster : renderHomework)();
       /* huiswerk binnen terwijl je naar het rooster van die week kijkt: HW-labeltjes bijwerken */
       else if (!isR && !same && S.tab === 'rooster' && S.rMonday.getTime() === key && !sh.querySelector('.modal, .panel, .ov')) renderRooster();
@@ -3129,6 +2679,9 @@
     }
   }
   const recentlyFailed = (name, key) => Date.now() - (S.failT[name + key] || 0) < 5 * 60000;
+  /* langer dan 10 minuten niet opgehaald: opnieuw (de app blijft op Android soms dagen in het geheugen; anders zag je
+     nieuw huiswerk pas na zelf vernieuwen) */
+  const stale = (name, key) => Date.now() - (S.fresh[name + key] || 0) > 10 * 60000;
   /* mag huiswerk nu opgehaald worden? Op 4G/5G niet als dat bij Meer → Datagebruik op nooit staat */
   function hwAllowed() {
     try { if (Native && Native.onMobile && Native.onMobile()) return (JSON.parse(Native.getSettings()).n_mob_h_mode || DATA_DEF.h) !== 'off'; } catch (e) {}
@@ -3148,13 +2701,20 @@
     setHeader('Huiswerk');
     const mon = S.hwMonday, key = mon.getTime();
     /* "Nog 44 dagen tot de kerstvakantie" staat bij Huiswerk, onder de week en boven het huiswerk */
-    const shell = body => { main.innerHTML = `<div class="pad">${weekNav(mon, 'hw')}${countdownHtml()}<div class="swipe-area">${body}</div></div>`; bindWeekNav('hwMonday', renderHomework); };
+    let newElsewhere = '';
+    const shell = body => {
+      main.innerHTML = `<div class="pad">${weekNav(mon, 'hw')}${outBar()}${newElsewhere}${countdownHtml()}<div class="swipe-area">${body}</div></div>`;
+      bindWeekNav('hwMonday', renderHomework);
+      main.querySelectorAll('.hwnew').forEach(b => { b.onclick = () => { S.hwMonday = new Date(+b.dataset.wk); renderHomework(); }; });
+    };
     if (!S.hw[key] && !S.fresh['hw' + key]) { const c = weekCache.get('hw', key); if (c) { S.hw[key] = c; refreshWeek('hw', key, mon); } }
+    /* wat er staat is al een tijdje oud: stil op de achtergrond bijwerken (tekent opnieuw als er iets nieuws is) */
+    else if (S.hw[key] && stale('hw', key) && !recentlyFailed('hw', key) && hwAllowed()) refreshWeek('hw', key, mon);
     const cached = S.hw[key];
     if (!cached) {
       shell(skeleton('hw'));
       spinning(true);
-      try { S.hw[key] = await loadHomework(mon); S.fresh['hw' + key] = 1; weekCache.set('hw', key, S.hw[key]); retryGrades(); /* het portaal werkt dus: je bent niet uitgelogd */ }
+      try { S.hw[key] = await loadHomework(mon); S.fresh['hw' + key] = S.hw[key].unsure ? Date.now() - 9 * 60000 : Date.now(); if (!S.hw[key].unsure) weekCache.set('hw', key, S.hw[key]); retryGrades(); /* het portaal werkt dus: je bent niet uitgelogd */ }
       catch (e) { spinning(false); if (S.tab !== 'huiswerk' || S.hwMonday.getTime() !== key) return; return e.message === 'login' ? loginScreen() : shell(errBox(e)); }
       spinning(false);
       if (S.tab !== 'huiswerk' || S.hwMonday.getTime() !== key) return;
@@ -3162,8 +2722,17 @@
     /* je eigen huiswerk (zelf ingevuld, bijv. uit je agenda) komt erbij in deze week */
     const items = S.hw[key].concat(ownHwWeek(mon));
     /* je ziet het nu: niet meer meetellen voor het getalletje (de labels NIEUW blijven deze keer nog staan) */
-    const pend = ls.get('cp:hwNew', []) || [];
-    if (pend.length) { const here = new Set(items.map(i => i.id)); ls.set('cp:hwNew', pend.filter(id => !here.has(id))); updateNav(); }
+    const pend = hwPending();
+    const seenHere = Object.keys(pend).filter(id => pend[id] === key);
+    if (seenHere.length) { seenHere.forEach(id => { delete pend[id]; }); setHwPending(pend); updateNav(); }
+    /* nieuw huiswerk in een andere week (bijv. opgehaald via het rooster): laten zien waar het staat, met een tik erheen */
+    const otherWeeks = {};
+    Object.keys(pend).forEach(id => { otherWeeks[pend[id]] = (otherWeeks[pend[id]] || 0) + 1; });
+    /* één vakje, ook als het in meer weken staat: per week een knopje om erheen te gaan */
+    const wks = Object.keys(otherWeeks).map(Number).sort((a, b) => a - b), totNew = wks.reduce((s, w) => s + otherWeeks[w], 0);
+    newElsewhere = !wks.length ? '' : wks.length === 1
+      ? `<button class="outbar hwnew newbar" data-wk="${wks[0]}"><b>${totNew} nieuw in week ${isoWeek(new Date(wks[0]))}</b><span>Tik om die week te bekijken ›</span></button>`
+      : `<div class="outbar newbar"><b>${totNew} nieuw in andere weken</b><div class="newwks">${wks.map(w => `<button class="hwnew" data-wk="${w}">week ${isoWeek(new Date(w))} · ${otherWeeks[w]} ›</button>`).join('')}</div></div>`;
     if (S.devHwNew && items.some(i => i.dev)) { S.devHwNew = 0; updateNav(); }
     const addBtn = '<button class="linkbtn" data-a="ownhw" style="text-align:center;border-bottom:0">+ Zelf huiswerk toevoegen</button>';
     if (!items.length) {
@@ -3341,13 +2910,17 @@
   /* streepje op de hoogte van "nu" (zoals in een agenda), en in de weekweergave een lichte achtergrond achter vandaag.
      Rijen met data-a/data-b (begin- en eindminuut) bepalen waar het streepje komt: in een les naar rato, in een pauze ertussen */
   /* tijd → hoogte in het weekrooster, volgens de tijdas links (lesuren en de pauzes ertussen) */
-  function weekY(wk, t) {
+  /* end: de eindtijd van een les. Valt die na het einde van een rij maar niet later dan de volgende rij begint (bijv. een
+     verkorte les tot 12:20 terwijl het 5e uur bij 12:10 stopt voor de etenspauze), dan eindigt het vakje bij die rij en
+     loopt het niet over de pauzebalk heen */
+  function weekY(wk, t, end) {
     const rows = [...wk.querySelectorAll('.wku[data-a]')];
     if (!rows.length) return null;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i], a = +r.dataset.a, b = +r.dataset.b, nx = rows[i + 1];
       if (t <= a && i === 0) return r.offsetTop;
       if (t >= a && t <= b) return r.offsetTop + (t - a) / (b - a) * r.offsetHeight;
+      if (end && nx && t > b && t <= +nx.dataset.a) return r.offsetTop + r.offsetHeight;
       if (nx && t > b && t < +nx.dataset.a) { const end = r.offsetTop + r.offsetHeight; return end + (t - b) / (+nx.dataset.a - b) * (nx.offsetTop - end); }
     }
     const last = rows[rows.length - 1];
@@ -3358,10 +2931,12 @@
     const wk = main.querySelector('.wk');
     if (!wk) return;
     /* eerst alles opmeten, dan schrijven (anders rekende de browser na elk vakje de hele tabel opnieuw uit) */
-    const todo = [...wk.querySelectorAll('.wkc[data-kort]')].map(cell => ({ cell, top: weekY(wk, +cell.dataset.ka), bottom: weekY(wk, +cell.dataset.kb), off: cell.offsetTop }));
-    todo.forEach(({ cell, top, bottom, off }) => {
+    /* need: hoogte van wat erin staat (vak, lokaal, tijd), zodat de tijd nooit wordt afgesneden */
+    const need = cell => { const k = [...cell.children].filter(x => getComputedStyle(x).position !== 'absolute'); return k.reduce((s, x) => s + x.offsetHeight, 0) + 4; };
+    const todo = [...wk.querySelectorAll('.wkc[data-kort]')].map(cell => ({ cell, top: weekY(wk, +cell.dataset.ka), bottom: weekY(wk, +cell.dataset.kb, true), off: cell.offsetTop, min: need(cell) }));
+    todo.forEach(({ cell, top, bottom, off, min }) => {
       if (top == null || bottom == null) return;
-      const h = Math.max(26, Math.round(bottom - top - 2));
+      const h = Math.max(26, min, Math.round(bottom - top - 2));
       cell.style.minHeight = cell.style.height = h + 'px';
       cell.style.transform = `translateY(${Math.round(top - off + 1)}px)`;
     });
@@ -3447,12 +3022,12 @@
   async function renderRooster() {
     setHeader('Rooster');
     const mon = S.rMonday, key = mon.getTime();
-    const shell = (body, raw) => { main.innerHTML = `<div class="pad">${weekNav(mon, 'r')}${raw ? body : `<div class="swipe-area">${body}</div>`}</div>`; bindWeekNav('rMonday', renderRooster); };
+    const shell = (body, raw) => { main.innerHTML = `<div class="pad">${weekNav(mon, 'r')}${outBar()}${raw ? body : `<div class="swipe-area">${body}</div>`}</div>`; bindWeekNav('rMonday', renderRooster); };
     if (!S.rooster[key] && !S.fresh['r' + key]) { const c = weekCache.get('r', key); if (c) { S.rooster[key] = c; refreshWeek('r', key, mon); } }
     if (!S.rooster[key]) {
       shell(skeleton('rooster'));
       spinning(true);
-      try { S.rooster[key] = await loadRooster(mon); S.fresh['r' + key] = 1; weekCache.set('r', key, S.rooster[key]); pushWidget(); }
+      try { S.rooster[key] = await loadRooster(mon); S.fresh['r' + key] = Date.now(); weekCache.set('r', key, S.rooster[key]); pushWidget(); }
       catch (e) { spinning(false); if (S.tab !== 'rooster' || S.rMonday.getTime() !== key) return; return e.message === 'login' ? loginScreen() : shell(errBox(e)); }
       spinning(false);
       if (S.tab !== 'rooster' || S.rMonday.getTime() !== key) return;
@@ -3489,7 +3064,7 @@
     const hwSheetHtml = (d, l) => {
       const h = hwFor(d, l);
       if (!h) return '';
-      return `<div class="setting-h" style="margin-top:14px">Huiswerk</div>` + h.items.map(it => {
+      return `<div class="setting-h sub">Huiswerk</div>` + h.items.map(it => {
         const ok = it.gemaakt || done[it.id];
         return `<div class="hw-in-les${ok ? ' isdone' : ''}"><div class="t">${it.toets ? '<span class="tag">TOETS</span> ' : ''}${it.own ? '<span class="tag dim">EIGEN</span> ' : ''}<b>${esc(it.onderwerp || 'Huiswerk')}</b>${ok ? ' <span class="tag dim">✓ GEMAAKT</span>' : ''}</div>${it.huiswerk ? `<div class="txt">${esc(it.huiswerk)}</div>` : ''}</div>`;
       }).join('') + '<button class="linkbtn" data-a="tohw" style="border-bottom:0">Naar Huiswerk ›</button>';
@@ -3522,7 +3097,7 @@
         const uitval = l.uitval || /vervall|cancel|uitval/i.test(l.status || '');
         const note = [l.wijziging, l.opmerking].filter(Boolean).join(' · ');
         out += `<div class="card-box les${compact ? ' compact' : ''}${now && !uitval ? ' now' : ''}${gone ? ' gone' : ''}${d.date < today.getTime() ? ' pastday' : ''}${uitval ? ' vervallen' : ''}"${isToday && a != null && b != null ? ` data-a="${a}" data-b="${b}"` : ''}>
-          <div class="uur"><b>${esc(l.uur || '–')}</b><span>${esc((l.tijd || '').split('-')[0].trim())}</span></div>
+          <div class="uur"><b>${esc(l.uur || '–')}</b></div>
           <div class="wat"><b>${emoji(l.vak)} ${esc(vakName(l.vak))} ${uitval ? '<span class="tag red">UITVAL</span>' : l.type === 'exam' ? '<span class="tag">TOETS</span>' : l.tijdAnders || l.nieuw ? '<span class="tag">GEWIJZIGD</span>' : ''} ${hwTag(d, l)}</b><span>${esc(lesTijd(l.tijd))}${l.docent ? ' · ' + docBtn(l.docent) : ''}</span></div>
           <div class="lok${l.lokaalAnders ? ' changed' : ''}">${esc(l.lokaal || '–')}${l.wasLokaal ? `<small>was ${esc(l.wasLokaal)}</small>` : ''}</div>
           ${note ? `<div class="note">${esc(note)}</div>` : ''}</div>`;
@@ -3582,7 +3157,8 @@
       let n = 0, kort = 0;
       d.lessons.forEach(l => {
         const u = parseInt(l.uur, 10), [a, b] = (l.tijd || '').split('-').map(toMin), ab = uurAB(u);
-        if (isNaN(u) || a == null || b == null || !ab) return;
+        /* uitgevallen lessen tellen niet mee: die houdt Zermelo op de gewone tijd */
+        if (l.uitval || isNaN(u) || a == null || b == null || !ab) return;
         n++;
         if (b - a <= ab[1] - ab[0] - 5) kort++;
       });
@@ -3605,12 +3181,14 @@
         days.forEach((d, di) => {
           const ls2 = d.lessons.filter(l => parseInt(l.uur, 10) === u);
           if (!ls2.length) { html += '<div class="wkc empty"></div>'; return; }
-          const l = ls2[0], uit = l.uitval || /vervall|cancel|uitval/i.test(l.status || '');
+          /* meerdere lessen op hetzelfde uur (bijv. GS valt uit, BO komt ervoor in de plaats): de les die doorgaat in het vakje */
+          const l = ls2.find(x => !x.uitval) || ls2[0], uit = l.uitval || /vervall|cancel|uitval/i.test(l.status || '');
           const isToday = sameDay(new Date(d.date), today);
           const [a, b] = (l.tijd || '').split('-').map(toMin);
+          const abN = uurAB(u), sd = shortDay(d);
           const now = isToday && a != null && b != null && nowMin >= a && nowMin < lesEnd(a, b); /* (tijdens de etenspauze is de les al voorbij) */
           /* verkorte les: het vakje is naar verhouding lager (bijv. 35 van de 50 minuten), en de begintijd staat erbij */
-          const abN = uurAB(u), kort = a != null && b != null && abN && shortDay(d) && b - a < abN[1] - abN[0];
+          const kort = a != null && b != null && abN && sd && b - a < abN[1] - abN[0];
           const kortH = kort ? Math.max(30, Math.round(48 * (b - a) / (abN[1] - abN[0]))) : 0;
           html += `<button class="wkc${d.date < today.getTime() ? ' past' : ''}${uit ? ' uit' : ''}${l.type === 'exam' ? ' exam' : ''}${now && !uit ? ' now' : ''}${l.lokaalAnders || l.tijdAnders || l.wijziging ? ' chg' : ''}" data-les="${di}:${d.lessons.indexOf(l)}"${kort ? ` style="min-height:${kortH}px;height:${kortH}px;align-self:start" data-kort data-ka="${a}" data-kb="${b}"` : ''}${isToday && a != null && b != null ? ` data-today data-a="${a}" data-b="${b}"` : ''}>
             <b>${esc(l.vak.toUpperCase().slice(0, 5))}</b><span>${esc((l.lokaal || '').split(',')[0])}</span>${kort ? `<em class="wkt">${hm(a)}–${hm(b)}</em>` : ''}${ls2.length > 1 ? '<i>+' + (ls2.length - 1) + '</i>' : ''}${hwBadge(d, l)}</button>`;
@@ -3640,6 +3218,7 @@
       html += `<div class="seg">${days.map(d => { const x = new Date(d.date); return `<button class="${d.date === S.rDay ? 'on' : ''}" data-day="${d.date}">${DAYS_SHORT[x.getDay()]} ${x.getDate()}${d.lessons.some(l => l.uitval) ? ' •' : ''}</button>`; }).join('')}</div>
         <div class="swipe-area">${day.date === days[0].date ? weekendHtml('voor') : ''}<div class="day-h${sameDay(dd, today) ? ' today' : ''}">${esc(niceDay(dd))}, ${day.lessons.length ? day.lessons.length + ' ' + (day.lessons.length === 1 ? 'les' : 'lessen') + (shortDay(day) ? ' <button class="vkbtn" data-lestijden>verkort ⓘ</button>' : '') : 'vrij'}</div>${lessonsHtml(day, false)}${remHtml(day.date, 'Reminders')}${day.date === days[days.length - 1].date ? weekendHtml('na') : ''}</div>`;
     }
+    html += laterUpdateHtml();
     if (!zm && !DEMO) html += `<div class="card-box"><div class="setting-h">Koppel Zermelo voor uitval</div>
       <p class="small muted">Dit rooster komt nu van het portaal en laat geen uitval zien. Koppel Zermelo om uitval, lokaalwijzigingen en meldingen te krijgen.</p>
       <div class="row" style="margin-top:10px;justify-content:flex-start"><button class="btn" data-a="zm">Zermelo koppelen</button></div></div>`;
@@ -3662,6 +3241,7 @@
           <div class="listrow"><span class="muted">Lokaal</span><b>${esc(l.lokaal || '–')}${l.wasLokaal ? ` <span class="muted" style="font-weight:500">(was ${esc(l.wasLokaal)})</span>` : ''}</b></div>
           ${l.docent ? `<div class="listrow"><span class="muted">Docent</span><b>${docBtn(l.docent, true)}</b></div>` : ''}
           ${l.wijziging || l.opmerking ? `<div class="listrow"><span class="muted">Wijziging</span><b>${esc([l.wijziging, l.opmerking].filter(Boolean).join(' · '))}</b></div>` : ''}
+          ${d.lessons.filter(x => x !== l && x.uur && x.uur === l.uur && x.vak).map(x => `<div class="listrow"><span class="muted">Ook dit uur</span><b>${esc(vakName(x.vak))}${x.uitval ? ' <span class="tag red">UITVAL</span>' : x.lokaal ? ' · ' + esc(x.lokaal) : ''}</b></div>`).join('')}
           ${hwSheetHtml(d, l)}
           <button class="btn ghost" data-a="close">Sluiten</button></div>`;
         m.addEventListener('click', e => {
@@ -3683,6 +3263,18 @@
     main.querySelectorAll('[data-rv]').forEach(b => { b.onclick = () => { S.rView = b.dataset.rv; ls.set('cp:rview', S.rView); renderRooster(); }; });
     const zb = main.querySelector('[data-a=zm]');
     if (zb) zb.onclick = () => zermeloSheet(); /* niet de klik doorgeven: die telde als "eerste keer" */
+    const lu = main.querySelector('[data-a=laterupd]');
+    if (lu) lu.onclick = () => { const u = laterUpdate(); if (u) updSheet(u); };
+  }
+  /* "Later herinneren" gekozen bij een gewone update: tot die tijd onderaan het rooster een vakje om toch nu bij te werken */
+  function laterUpdate() {
+    const sn = ls.get('cp:updSnooze', null), u = ls.get('cp:updFound', null), cur = appVer();
+    if (!sn || !u || !cur || sn.v !== u.v || Date.now() >= sn.until || /-(canary|beta)\./.test(u.v) || !newer(u.v, cur)) return null;
+    return u;
+  }
+  function laterUpdateHtml() {
+    const u = laterUpdate();
+    return u ? `<button class="setrow" data-a="laterupd" style="margin-top:14px;border:1px solid var(--line);border-radius:16px;padding:12px 16px"><span class="sr-t"><b>Update beschikbaar: ${esc(u.v)}</b><small>Je koos later. Tik om nu bij te werken.</small></span><span class="go">›</span></button>` : '';
   }
 
   function zermeloSheet(first) {
@@ -3698,8 +3290,8 @@
         <li>Open Zermelo (<b>ichthus.zportal.nl</b>) en log in.</li>
         <li>Ga in het menu naar <b>Koppelingen</b> en kies <b>Koppel App</b>.</li>
         <li>Vul de <b>schoolnaam</b> en <b>koppelcode</b> hieronder in.</li></ol>
-      <label class="lbl" style="display:block;margin-top:10px">Schoolnaam</label><input type="text" data-f="school" value="${esc(zm ? zm.school : 'ichthus')}" autocapitalize="off" autocomplete="off">
-      <label class="lbl" style="display:block;margin-top:10px">Koppelcode</label><input type="text" inputmode="numeric" data-f="code" placeholder="123 456 789 012">
+      <label class="lbl fld">Schoolnaam</label><input type="text" data-f="school" value="${esc(zm ? zm.school : 'ichthus')}" autocapitalize="off" autocomplete="off">
+      <label class="lbl fld">Koppelcode</label><input type="text" inputmode="numeric" data-f="code" placeholder="123 456 789 012">
       <div class="row" style="margin-top:12px"><button class="btn ${sso ? 'ghost' : ''}" data-a="go">Koppelen met code</button></div>
       ${sso ? '</details>' : ''}
       <button class="btn ghost" data-a="close">${first ? 'Later' : 'Annuleren'}</button></div>`;
@@ -3738,7 +3330,7 @@
   const ICONS_APP = [['zwartkaal', 'Zwart'], ['kaal', 'Wit'], ['zwart', 'Goud op zwart'], ['default', 'Goud op wit']];
   const curIcon = () => { try { return Native && Native.getIcon ? Native.getIcon() : ls.get('cp:icon', 'zwartkaal'); } catch (e) { return 'zwartkaal'; } };
   const shownIcon = curIcon;
-  const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET(logoFile('icon-' + (k === 'default' ? 'wit' : k) + '.png'))}" alt=""><span>${l}</span></button>`).join('')}</div>`;
+  const iconGrid = cur => `<div class="icgrid">${ICONS_APP.map(([k, l]) => `<button class="icpick${cur === k ? ' on' : ''}" data-icon="${k}"><img src="${ASSET('icon-' + (k === 'default' ? 'wit' : k) + '.png')}" alt=""><span>${l}</span></button>`).join('')}</div>`;
   function setIcon(k) {
     ls.set('cp:icon', k);
     try { if (Native && Native.setIcon) Native.setIcon(k === 'default' ? 'Default' : k.charAt(0).toUpperCase() + k.slice(1)); } catch (e) {}
@@ -3752,7 +3344,7 @@
     const days = Math.floor((ms - Date.now()) / 864e5), d = new Date(ms);
     return (days < 1 ? 'Verloopt vandaag' : days === 1 ? 'Nog 1 dag' : 'Nog ' + days + ' dagen') + ' geldig (tot ' + d.getDate() + ' ' + MONTH_FULL[d.getMonth()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ')';
   };
-  const refreshSteps = () => `<p class="small" style="color:var(--fg2)"><span class="tag">VERPLICHT</span> Met een gratis Apple ID werkt W.S.P 7 dagen. Daarna moet SideStore hem vernieuwen, anders opent hij niet meer. ${esc(expiryText())}.</p>
+  const refreshSteps = () => `<p class="small" style="color:var(--fg2)"><span class="tag">VERPLICHT</span> Met een gratis Apple ID werkt C.R.H 7 dagen. Daarna moet SideStore hem vernieuwen, anders opent hij niet meer. ${esc(expiryText())}.</p>
       <p class="small" style="color:var(--fg2)">Laat <b>LocalDevVPN</b> gewoon aan staan (hij werkt alleen binnen je telefoon en kost bijna geen batterij). Laat het vernieuwen dan 's nachts vanzelf gebeuren met de app <b>Opdrachten</b>, in 3 stappen:</p>
       <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
         <li>Open <b>Opdrachten</b> → <b>Automatisering</b> → <b>+</b> → <b>Tijdstip</b>.</li>
@@ -3787,7 +3379,7 @@
     m.innerHTML = `<div class="sheet"><h3>Zien wat je hierna hebt</h3>
       <div data-wsize></div>
       <p class="small muted">Een widget op je ${IOS ? 'beginscherm of toegangsscherm' : 'startscherm'} met je les van nu of je volgende les, het lokaal en of er uitval is, ${IOS ? 'klein, middel of op je toegangsscherm' : 'in drie maten'}. Tik erop en je ziet je rooster.</p>
-      <div class="ws-help" hidden><p class="small"><b>Zelf toevoegen:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
+      <div class="ws-help" hidden><p class="small"><b>Zelf toevoegen:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>C.R.H</b> → sleep <b>Volgende les</b> naar je scherm.</p></div>
       <button class="btn" data-a="pin">Op startscherm zetten</button><button class="btn ghost" data-a="close">Sluiten</button></div>`;
     m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-a=close]')) m.remove(); });
     if (IOS) {
@@ -3906,7 +3498,7 @@
         m.innerHTML = `<div class="sheet">${dots()}<h3>Op je ${where} zetten</h3>
           <div class="wall"><span class="wall-l">${label()}</span>${widgetPreview(cls())}</div>
           ${IOS ? IOS_WIDGET.replace('kies een maat', 'kies <b>' + label().toLowerCase() + '</b>') : `<p class="small" style="color:var(--fg2)">Tik op <b>Op startscherm zetten</b>. Android vraagt daarna waar hij moet komen.</p>
-          <div class="ws-help" hidden><p class="small"><b>Zelf neerzetten:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>W.S.P</b> → sleep <b>Volgende les (${label()})</b> naar je scherm.</p></div>`}
+          <div class="ws-help" hidden><p class="small"><b>Zelf neerzetten:</b> houd een leeg plekje op je startscherm ingedrukt → <b>Widgets</b> → zoek <b>C.R.H</b> → sleep <b>Volgende les (${label()})</b> naar je scherm.</p></div>`}
           <p class="small muted">Tik op de widget en je rooster opent. Je kunt dit later teruglezen bij Meer → Zien wat je hierna hebt.</p>
           <div class="row"><button class="btn ghost" data-a="back">Terug</button>${IOS ? '<button class="btn" data-a="later" style="flex:1">Begrepen</button>' : '<button class="btn ghost" data-a="later">Later</button><button class="btn" data-a="pin">Op startscherm zetten</button>'}</div></div>`;
         if (!IOS) {
@@ -3930,36 +3522,6 @@
     app.appendChild(m);
   }
   /* na het inloggen (en na voorwaarden en icoon): één keer vragen om Zermelo te koppelen */
-  /* eerste keer: meteen toestaan dat W.S.P zijn eigen updates mag installeren (daarna één tik per update) */
-  function askInstall() {
-    const can = () => { try { return Native.canInstall(); } catch (e) { return true; } };
-    if (ls.get('cp:installAsked', 0) || !(Native && Native.canInstall && Native.openInstallSettings)) return askBatteryStep();
-    /* altijd laten zien bij de eerste keer (ook als het al aan staat), zodat iedereen weet hoe updates werken */
-    const already = can();
-    const m = document.createElement('div');
-    m.className = 'modal';
-    m.innerHTML = `<div class="sheet"><h3>Updates in de app</h3>
-      <p class="small" style="color:var(--fg2)">W.S.P kan zichzelf bijwerken als er een nieuwe versie is. Daarvoor moet je één keer toestaan dat W.S.P <b>apps mag installeren</b>.</p>
-      <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px${already ? ';opacity:.5;text-decoration:line-through' : ''}">
-        <li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar W.S.P.</li></ol>
-      <p class="small muted">Dit is alleen voor updates van W.S.P zelf. Je kunt het later altijd weer uitzetten.</p>
-      <div class="small" data-inst style="font-weight:700;color:var(--accent-text)">${already ? '✓ Staat bij jou al aan. Updates kunnen met één tik.' : ''}</div>
-      <div class="row"><button class="btn" data-a="set" style="flex:1">${already ? 'Verder' : 'Instellen'}</button></div><div data-stuck></div></div>`;
-    let tries = 0, back = null, finished = false;
-    const done = () => { if (finished) return; finished = true; ls.set('cp:installAsked', 1); if (back) document.removeEventListener('visibilitychange', back); m.remove(); askBatteryStep(); };
-    if (already) { readFirst(m.querySelector('[data-a=set]'), done); app.appendChild(m); return; }
-    /* terug uit de instellingen: staat het aan, dan door; updates zijn verplicht, alleen als het echt niet lukt (na 2 keer) een uitweg */
-    back = () => {
-      if (document.hidden) return;
-      if (can()) { m.querySelector('[data-inst]').textContent = '✓ Staat aan. Updates kunnen nu met één tik.'; return setTimeout(done, 1200); }
-      if (tries) m.querySelector('[data-inst]').textContent = 'Nog niet aangezet. Tik op Instellen en zet "Toestaan uit deze bron" aan.';
-      if (tries >= 2) stuckLink(m, done);
-    };
-    document.addEventListener('visibilitychange', back);
-    /* eerst de uitleg lezen (3 seconden), dan instellen */
-    readFirst(m.querySelector('[data-a=set]'), () => { tries++; Native.openInstallSettings(); });
-    app.appendChild(m);
-  }
   /* eerst lezen: de knop werkt pas na een paar seconden (met aftellen erin) */
   function readFirst(btn, onClick, secs = 3) {
     const label = btn.innerHTML; /* innerHTML: een labeltje als "aanbevolen" in de knop blijft staan */
@@ -3981,7 +3543,7 @@
     box.innerHTML = '<button class="linkbtn" style="text-align:center;font-size:13px;color:var(--muted);border-bottom:0">Lukt het echt niet? Ga verder</button>';
     box.firstChild.onclick = onContinue;
   }
-  /* eerste keer, na de update-instelling: batterijbesparing uit voor W.S.P, eerst uitleggen wat je moet doen */
+  /* eerste keer, na de update-instelling: batterijbesparing uit voor C.R.H, eerst uitleggen wat je moet doen */
   function askBatteryStep() {
     if (IOS) return ls.get('cp:refreshAsked', 0) ? askWidgetStep() : askRefreshStep();
     const ok = () => { try { return Native.batteryOk(); } catch (e) { return true; } };
@@ -3993,7 +3555,7 @@
     /* staat al goed (en geen Xiaomi met zijn extra instelling): toch even laten zien, met Verder */
     if (step === 2 && !xiaomi) {
       m.innerHTML = `<div class="sheet"><h3>Meldingen op tijd</h3>
-        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen en reminders te laat of niet. Daarom moet de <b>batterijbesparing uit staan voor W.S.P</b>.</p>
+        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen en reminders te laat of niet. Daarom moet de <b>batterijbesparing uit staan voor C.R.H</b>.</p>
         <div class="small" style="font-weight:700;color:var(--accent-text)">✓ Staat bij jou al goed.</div>
         <div class="row"><button class="btn" data-a="set" style="flex:1">Verder</button></div></div>`;
       readFirst(m.querySelector('[data-a=set]'), () => { ls.set('cp:batteryAsked', 1); m.remove(); askWidgetStep(); });
@@ -4002,11 +3564,11 @@
     }
     const draw = () => {
       m.innerHTML = `<div class="sheet"><h3>Meldingen op tijd</h3>
-        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen over nieuwe cijfers en uitval, en je reminders, te laat of helemaal niet. Zet daarom de <b>batterijbesparing uit voor W.S.P</b>.</p>
+        <p class="small" style="color:var(--fg2)">Om batterij te sparen zet je telefoon apps op de achtergrond soms in slaap. Dan komen meldingen over nieuwe cijfers en uitval, en je reminders, te laat of helemaal niet. Zet daarom de <b>batterijbesparing uit voor C.R.H</b>.</p>
         <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px">
-          <li${step > 1 ? ' style="opacity:.5;text-decoration:line-through"' : ''}>Tik op <b>Instellen</b>. Er komt een venster van Android met de vraag of W.S.P op de achtergrond mag blijven werken: tik op <b>Toestaan</b> (of <b>OK</b>).</li>
-          ${xiaomi ? `<li>Daarna opent de app-info van W.S.P. Tik op <b>Batterijbesparing</b> en kies <b>Geen beperkingen</b>. Ga dan terug naar W.S.P.</li>` : ''}</ol>
-        <p class="small muted">W.S.P gebruikt daardoor niet merkbaar meer batterij: hij kijkt alleen af en toe even.</p>
+          <li${step > 1 ? ' style="opacity:.5;text-decoration:line-through"' : ''}>Tik op <b>Instellen</b>. Er komt een venster van Android met de vraag of C.R.H op de achtergrond mag blijven werken: tik op <b>Toestaan</b> (of <b>OK</b>).</li>
+          ${xiaomi ? `<li>Daarna opent de app-info van C.R.H. Tik op <b>Batterijbesparing</b> en kies <b>Geen beperkingen</b>. Ga dan terug naar C.R.H.</li>` : ''}</ol>
+        <p class="small muted">C.R.H gebruikt daardoor niet merkbaar meer batterij: hij kijkt alleen af en toe even.</p>
         <div class="small" data-bat style="font-weight:700;color:var(--accent-text)">${step > 1 && !xiaomi ? '✓ Staat goed.' : step > 1 ? '✓ Stap 1 gelukt.' : ''}</div>
         <div class="row"><button class="btn ghost" data-a="klaar">${opened ? 'Klaar' : 'Later'}</button><button class="btn" data-a="set" style="flex:1">${step > 1 && xiaomi ? 'App-info openen' : 'Instellen <span class="aanb">aanbevolen</span>'}</button></div></div>`;
       const k = m.querySelector('[data-a=klaar]');
@@ -4046,7 +3608,7 @@
   function firstRun() {
     if (!ls.get('cp:themePicked', 0)) themePicker();
     else if (!ls.get('cp:iconPicked', 0)) iconPicker();
-    else askInstall();
+    else askBatteryStep();
   }
   function themePicker() {
     const m = document.createElement('div');
@@ -4073,7 +3635,7 @@
       if (ci) { ci.oninput = () => { accent = applyAccent(ci.value); }; ci.onchange = () => setAccent(ci.value); }
       m.querySelector('[data-a=ok]').onclick = () => {
         ls.set('cp:themePicked', 1); m.remove();
-        if (!ls.get('cp:iconPicked', 0)) iconPicker(); else askInstall();
+        if (!ls.get('cp:iconPicked', 0)) iconPicker(); else askBatteryStep();
       };
     };
     draw();
@@ -4083,10 +3645,10 @@
     const m = document.createElement('div');
     m.className = 'modal';
     const draw = () => {
-      m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat W.S.P op je ${IOS ? 'beginscherm' : 'startscherm'}. Later aanpassen kan bij Meer → Thema.</p>
+      m.innerHTML = `<div class="sheet"><h3>Kies je app-icoon</h3><p class="small muted">Zo staat C.R.H op je ${IOS ? 'beginscherm' : 'startscherm'}. Later aanpassen kan bij Meer → Thema.</p>
         ${iconGrid(ls.get('cp:icon', 'zwartkaal'))}<button class="btn" data-a="ok">Klaar</button></div>`;
       m.querySelectorAll('[data-icon]').forEach(b => { b.onclick = () => { ls.set('cp:icon', b.dataset.icon); draw(); }; });
-      m.querySelector('[data-a=ok]').onclick = () => { setIcon(ls.get('cp:icon', 'zwartkaal')); ls.set('cp:iconPicked', 1); m.remove(); askInstall(); };
+      m.querySelector('[data-a=ok]').onclick = () => { setIcon(ls.get('cp:icon', 'zwartkaal')); ls.set('cp:iconPicked', 1); m.remove(); askBatteryStep(); };
     };
     draw();
     app.appendChild(m);
@@ -4122,27 +3684,23 @@
     app.appendChild(p);
   }
   /* ---------- voorwaarden: bij de eerste start akkoord geven ---------- */
-  const TERMS_VERSION = MUSIC ? 5 : 4; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account; 4: nieuwe naam W.S.P, inlogpagina zonder schoollogo, iPhone; 5: Music Edition (muziek via YouTube Music, Metrolist) */
+  const TERMS_VERSION = 5; /* 2: foutmeldingen gaan automatisch naar de developer; 3: updates via GitHub, controle op de achtergrond, bewaren per account; 4: nieuwe naam W.S.P, inlogpagina zonder schoollogo, iPhone; 5: nieuwe naam C.R.H, update-download via Android die de app na de update weer weghaalt */
   function showTerms(viewOnly) {
     const el = document.createElement('div');
     el.className = 'terms';
-    el.innerHTML = `<div class="logos"><img src="${ASSET(logoFile('mark.png'))}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+    el.innerHTML = `<div class="logos"><img src="${ASSET('mark.png')}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
       <h2>${viewOnly ? 'Voorwaarden en privacy' : 'Voordat je begint'}</h2>
-      ${MUSIC ? '<p class="small" style="margin:-4px 0 0"><span class="tag">MUSIC EDITION</span> W.S.P met een eigen muziekspeler</p>' : ''}
       <ul>
-        <li><b>Onofficiële app.</b> W.S.P${MUSIC ? ' Music Edition' : ''} is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens je school${MUSIC ? ', Zermelo of YouTube' : ' of Zermelo'}, en zij zijn er niet verantwoordelijk voor.</li>
-        ${MUSIC ? `<li><b>Muziek.</b> De muziekspeler zoekt en speelt muziek van YouTube Music, rechtstreeks vanaf deze telefoon. Er zit geen account bij YouTube of Google voor nodig. De app is niet van, en niet goedgekeurd door, YouTube of Google; de muziek is van de artiesten en hun platenmaatschappijen. Gebruik hem voor jezelf en houd je aan de regels van YouTube.</li>
-        <li><b>Downloads en wat je luistert.</b> Gedownloade nummers, wat je leuk vindt en wat je laatst hebt geluisterd worden alleen in de app op deze telefoon bewaard, niet ergens anders heen gestuurd. Gedownloade nummers kun je alleen in W.S.P afspelen. Verwijder je de app, dan zijn ze weg.</li>
-        <li><b>Gemaakt met Metrolist.</b> De muziekspeler gebruikt de open-source code van Metrolist (GPL-3.0), gebaseerd op InnerTune en OuterTune. Daarom is ook W.S.P Music Edition open source onder GPL-3.0. Zie Meer → Over W.S.P.</li>` : ''}
+        <li><b>Onofficiële app.</b> C.R.H is een persoonlijke app van een leerling. Hij is niet gemaakt door of namens je school of Zermelo, en zij zijn er niet verantwoordelijk voor.</li>
         <li><b>Namen en logo's.</b> De naam van je school en de naam en het logo van Zermelo zijn van hun eigenaren. Ze staan in de app alleen om te laten zien waar de gegevens vandaan komen. Als de school of Zermelo dat niet wil, worden ze weggehaald.</li>
-        <li><b>Inloggen</b> gaat via de gewone inlog van school (Microsoft) en Zermelo. De app ziet en bewaart je wachtwoord niet. Om je ingelogd te houden bewaart hij alleen de inlogcookies van het portaal (tot 30 dagen, bij elk gebruik verlengd) en de Zermelo-sleutel, in de afgeschermde opslag van de app op je telefoon. Andere apps kunnen daar niet bij. Uitloggen wist ze. Op de inlogpagina verbergt de app alleen het logo van school en zet hij een algemene voorbeeldtekst in het e-mailveld; wat je typt, leest hij niet.</li>
-        ${IOS ? `<li><b>Installeren op iPhone</b> gaat met SideStore en je eigen Apple ID. Met een gratis Apple ID werkt de app 7 dagen per keer; SideStore vernieuwt hem (zie Meer → Automatisch vernieuwen). W.S.P staat niet in de App Store en is niet door Apple gecontroleerd.</li>` : ''}
+        <li><b>Inloggen</b> gaat via de gewone inlog van school (Microsoft) en Zermelo. De app ziet en bewaart je wachtwoord niet. Om je ingelogd te houden bewaart hij alleen de inlogcookies van het portaal (tot 30 dagen, bij elk gebruik verlengd) en de Zermelo-sleutel, in de afgeschermde opslag van de app op je telefoon. Andere apps kunnen daar niet bij. Uitloggen wist ze. ${IOS ? 'Op de inlogpagina verbergt de app alleen het logo van school en zet hij een algemene voorbeeldtekst in het e-mailveld; wat' : 'De inlogpagina van school laat de app zoals hij is; wat'} je typt, leest hij niet.</li>
+        ${IOS ? `<li><b>Installeren op iPhone</b> gaat met SideStore en je eigen Apple ID. Met een gratis Apple ID werkt de app 7 dagen per keer; SideStore vernieuwt hem (zie Meer → Automatisch vernieuwen). C.R.H staat niet in de App Store en is niet door Apple gecontroleerd.</li>` : ''}
         <li><b>Je gegevens</b> (cijfers, rooster, huiswerk, absentie, je reminders en huiswerk dat je zelf toevoegt) worden alleen op deze telefoon bewaard en nergens anders heen gestuurd.</li>
-        <li><b>Rooster van iemand anders.</b> Staat je school het in Zermelo toe, dan kun je met een leerlingnummer het rooster van een medeleerling bekijken. De app laat alleen zien wat Zermelo jou ook laat zien, en bewaart het niet. Gebruik het netjes.</li>
+        <li><b>Rooster van iemand anders.</b> Staat je school het in Zermelo toe, dan kun je het rooster van een medeleerling of docent bekijken, en zoeken op klas, docentcode of leerlingnummer, net als bij Alle roosters in Zermelo. De app laat alleen zien wat Zermelo jou ook laat zien, en bewaart het niet. Gebruik het netjes.</li>
         <li><b>Op de achtergrond</b> kijkt de app in het leerlingportaal en Zermelo of er nieuwe cijfers, huiswerk of roosterwijzigingen zijn: ${IOS ? "zo vaak als iOS dat toestaat (meestal een paar keer per dag), hooguit zoals je instelt, en 's nachts niet" : "op wifi standaard elk half uur, op 4G/5G standaard elke 2,5 uur (alleen rooster en cijfers), elke schooldag een uur voor je eerste les, en 's nachts niet"}. Je stelt dit zelf in bij Meer → Datagebruik. Het gaat met je eigen inlog en alleen voor de meldingen die je aan hebt staan.</li>
         <li><b>Uitloggen</b> haalt je inlog en de Zermelo-koppeling weg. Welke cijfers je al hebt geopend, je afgevinkte huiswerk en je reminders blijven op deze telefoon bewaard onder jouw account, zodat ze terugkomen als je weer inlogt. Iemand anders die hier inlogt, ziet ze niet.</li>
-        <li><b>Updates.</b> De app staat op GitHub. W.S.P kijkt daar als je de app opent op wifi of er een nieuwe versie is. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. ${IOS ? 'Bijwerken gaat via SideStore: de app opent SideStore met de nieuwe versie.' : 'De app downloadt de nieuwe versie daar als je op Bijwerken tikt. De toestemming om apps te installeren wordt alleen gebruikt voor updates van W.S.P zelf.'}</li>
-        <li><b>Foutmeldingen.</b> Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh)${IOS ? ' de volgende keer dat je de app opent' : ''}, met de app-versie en je telefoonmodel. Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>
+        <li><b>Updates.</b> De app staat op GitHub. C.R.H kijkt daar als je de app opent op wifi of er een nieuwe versie is. GitHub krijgt daarbij alleen een gewoon verzoek (met je IP-adres, zoals bij elke website), geen gegevens over jou. ${IOS ? 'Bijwerken gaat via SideStore: de app opent SideStore met de nieuwe versie.' : 'Tik je op Bijwerken, dan downloadt Android de nieuwe versie daar (op Android 9 en ouder doet je browser dat); installeren doe je zelf. Na de update haalt de app alleen die ene download weer weg uit Downloads; andere bestanden kan en zal hij niet aanraken.'}</li>
+        <li><b>Foutmeldingen.</b> ${IOS ? 'Loopt de app vast, dan wordt de technische foutmelding automatisch naar de developer gestuurd (via de meldingsdienst ntfy.sh) de volgende keer dat je de app opent, met de app-versie en je telefoonmodel.' : 'Loopt de app vast, dan zie je de technische foutmelding met de app-versie en je telefoonmodel. Die wordt niet vanzelf verstuurd: je kunt hem zelf kopiëren en naar de developer sturen.'} Daar zitten geen cijfers, rooster, naam of inloggegevens in.</li>
         <li><b>Cookies en opslag.</b> De app gebruikt de cookies van het leerlingportaal en Zermelo om je ingelogd te houden, en lokale opslag voor je instellingen en reminders. De lettertypes zitten in de app zelf, daarvoor wordt niets van internet geladen. Er zijn geen advertenties en er wordt niets bijgehouden.</li>
         <li><b>Geen garantie.</b> De app kan fouten bevatten of verouderde informatie tonen. Controleer belangrijke dingen, zoals cijfers, toetsen en roosterwijzigingen, altijd in het leerlingportaal of Zermelo.</li>
         <li><b>Gebruik</b> is op eigen risico. Houd je aan de regels van school voor het gebruik van het portaal en Zermelo.</li>
@@ -4278,7 +3836,7 @@
     hwremind: ['Huiswerkherinneringen', 'Kies wanneer je een seintje krijgt voordat huiswerk af moet zijn. <b>Standaard</b> geldt voor alles, per vak kun je het anders instellen. Afgevinkt huiswerk krijgt geen herinnering meer.'],
     themes: ['Thema', 'Kies <b>Wit</b> of <b>Zwart</b> en een accentkleur. Met het regenboogrondje kies je zelf een kleur. Onderaan kies je het icoontje op je startscherm.'],
     data: ['Datagebruik', 'Hier kies je hoe vaak de app kijkt op <b>wifi</b> en op <b>4G/5G</b>, en wat er op 4G/5G mag. Je ziet ook een schatting van je dataverbruik, zodat je bundel niet opgaat.'],
-    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> W.S.P werkt 7 dagen, daarna moet SideStore hem vernieuwen, anders opent hij niet meer. Laat LocalDevVPN aan staan en stel in <b>Opdrachten</b> één keer in:<br><b>1. Automatisering → + → Tijdstip</b><br><b>2. 02:00, Wekelijks, twee dagen aanvinken → Voer direct uit</b><br><b>3. SideStore → Refresh All Apps → Gereed</b><br>Hier zie je ook hoeveel dagen hij nog werkt.']
+    sidestore: ['Automatisch vernieuwen', '<span class="tag">VERPLICHT</span> C.R.H werkt 7 dagen, daarna moet SideStore hem vernieuwen, anders opent hij niet meer. Laat LocalDevVPN aan staan en stel in <b>Opdrachten</b> één keer in:<br><b>1. Automatisering → + → Tijdstip</b><br><b>2. 02:00, Wekelijks, twee dagen aanvinken → Voer direct uit</b><br><b>3. SideStore → Refresh All Apps → Gereed</b><br>Hier zie je ook hoeveel dagen hij nog werkt.']
   };
   if (IOS) {
     TIPS.meldingen[1] = TIPS.meldingen[1].replace('<b>trillen</b>, ', '');
@@ -4405,10 +3963,12 @@
   /* canary-updates (ontwikkelaarsopties): alleen op deze telefoon, dan ook pre-releases van GitHub */
   /* alleen als het ontwikkelaarsscherm met de code is ontgrendeld (dat geldt tot je de app sluit) én Canary-updates aan staat;
      zonder code krijg je altijd gewone versies, ook als de schakelaar van een eerdere keer nog aan staat */
-  const canaryOn = () => !!(S.devOn && ls.get('cp:canary', false));
+  /* met "Altijd open" (ontwikkelaar) altijd canary; staat die uit, dan zoals eerst: alleen met de code én de schakelaar */
+  /* opnieuw naar de nieuwste versie kijken (bijv. na het wisselen tussen canary en gewoon) */
+  const resetUpdCheck = () => { ls.set('cp:updFound', null); ls.set('cp:updCheck', 0); };
+  const canaryOn = () => !!(S.devOn && (devAlways() || ls.get('cp:canary', false)));
   const appVer = () => { try { return Native && Native.appVersion ? Native.appVersion() : ''; } catch (e) { return ''; } };
-  /* de Music Edition werkt (nog) niet zichzelf bij: de releases op GitHub zijn van de gewone W.S.P */
-  const canUpdate = () => !MUSIC && !!(Native && Native.installUpdate && appVer());
+  const canUpdate = () => !!(Native && Native.installUpdate && appVer());
   /* via Android (het portaal kan verzoeken naar andere sites tegenhouden); in de preview gewoon met fetch */
   /* één vraag tegelijk (Android antwoordt via één callback). Vraag je iets voor een ander kanaal (canary/gewoon)
      terwijl er nog een loopt, dan eerst die afwachten en daarna een nieuwe vraag */
@@ -4427,8 +3987,10 @@
     relPending = job;
     return job.p;
   };
+  /* de APK van een versie: C.R.H-v….apk; oudere versies hadden alleen Ichthus+.apk (die staat er soms nog naast voor oude apps) */
+  const apkAsset = assets => (assets || []).find(a => /^C\.R\.H.*\.apk$/i.test(a.name)) || (assets || []).find(a => /\.apk$/i.test(a.name));
   async function fetchRelease() {
-    const j = await releaseJson(), asset = (j.assets || []).find(a => (IOS ? /\.ipa$/i : /\.apk$/i).test(a.name));
+    const j = await releaseJson(), asset = IOS ? (j.assets || []).find(a => /\.ipa$/i.test(a.name)) : apkAsset(j.assets);
     return asset ? { v: String(j.tag_name).replace(/^v/, ''), url: asset.browser_download_url, notes: j.body || '', size: asset.size } : null;
   }
   /* manual: via de knop in Meer (dan altijd tonen, ook als je hem had uitgesteld); test: ook als het geen nieuwere versie is */
@@ -4442,7 +4004,7 @@
     let u = ls.get('cp:updFound', null);
     /* een eerder gevonden canary niet laten zien als canary nu niet mag (geen ontwikkelaarscode): opnieuw kijken */
     const isCanary = v => /-(canary|beta)\./.test(String(v || ''));
-    if (u && isCanary(u.v) && !canaryOn()) { u = null; ls.set('cp:updFound', null); ls.set('cp:updCheck', 0); }
+    if (u && isCanary(u.v) && !canaryOn()) { u = null; resetUpdCheck(); }
     if (manual || force || Date.now() - (ls.get('cp:updCheck', 0) || 0) > 2 * 60000) {
       try { u = await fetchRelease(); ls.set('cp:updCheck', Date.now()); ls.set('cp:updFound', u); }
       catch (e) { if (manual) toast('Kon niet kijken of er een update is'); return; }
@@ -4477,31 +4039,45 @@
     m.querySelector('[data-a=later]').onclick = () => {
       ls.set('cp:updSnooze', { v: u.v, until: Date.now() + later });
       m.remove();
+      if (S.tab === 'rooster' && !sh.querySelector('.modal, .panel, .ov')) renderRooster(); /* vakje "Update beschikbaar" onderaan */
       toast('Je krijgt het over ' + LATER.find(x => x[0] === later)[1] + ' weer te zien');
     };
     go.onclick = () => {
       if (!canUpdate()) { msg.textContent = 'Updaten kan alleen in de app.'; return; }
       go.disabled = true;
       msg.textContent = IOS ? 'SideStore openen…' : 'Downloaden…';
+      if (!IOS) ls.set('cp:updDl', 1); /* na de update: tip om de download op te ruimen */
       Native.installUpdate(u.url);
     };
     window.__cpUpd = (st, pct) => {
-      /* iPhone: SideStore installeert de update */
-      if (st === 'sidestore' || st === 'browser') {
-        go.disabled = false;
-        msg.textContent = st === 'sidestore' ? 'Tik in SideStore op Installeren. Daarna open je W.S.P gewoon weer.' : 'SideStore niet gevonden: de download staat in Safari. Zet hem via SideStore → My Apps → + erop.';
-      }
-      else if (st === 'busy') msg.textContent = 'Downloaden… ' + pct + '%';
-      else if (st === 'ask') {
-        msg.textContent = 'Tik in het venster van Android op Updaten.';
-        /* venster weggeklikt of niet verschenen (geen antwoord van Android): knop na een paar seconden weer bruikbaar */
-        setTimeout(() => { if (m.isConnected && go.disabled) { go.disabled = false; msg.textContent = 'Geen venster gezien of weggeklikt? Tik opnieuw op Nu bijwerken.'; } }, 6000);
-      }
-      else if (st === 'cancel') { go.disabled = false; msg.textContent = 'Bijwerken geannuleerd. Tik opnieuw op Nu bijwerken als je wilt.'; }
-      else if (st === 'perm') { go.disabled = false; msg.textContent = 'Zet "Toestaan uit deze bron" aan voor W.S.P, ga terug en tik opnieuw op Nu bijwerken.'; }
-      else { go.disabled = false; msg.textContent = 'Downloaden mislukt. Controleer je internet en probeer het opnieuw.'; }
+      if (st === 'busy') { go.disabled = true; msg.textContent = 'Downloaden… ' + (pct || 0) + '%'; return; }
+      go.disabled = false;
+      msg.textContent = UPD_MSG[st] || 'Downloaden mislukt. Controleer je internet en probeer het opnieuw.';
+      /* klaar: Downloads openen om te installeren (de app mag zelf niet installeren, dat wantrouwt Play Protect) */
+      if (st === 'ready' && Native && Native.openDownloads) { go.textContent = 'Open Downloads'; go.onclick = () => Native.openDownloads(); }
+      if (st === 'ready') popupHint(msg);
     };
     app.appendChild(m);
+  }
+  /* wat de app terugmeldt na "Nu bijwerken": iPhone geeft het aan SideStore (of Safari), Android aan de browser.
+     De app installeert zelf niets (Play Protect); een andere stand is "fail" */
+  const UPD_MSG = {
+    sidestore: 'Tik in SideStore op Installeren. Daarna open je C.R.H gewoon weer.',
+    browser: 'SideStore niet gevonden: de download staat in Safari. Zet hem via SideStore → My Apps → + erop.',
+    download: 'De download start in je browser. Tik daarna op de download (of open hem in Bestanden) en kies Installeren.',
+    busy: 'Downloaden…',
+    ready: 'Gedownload! Tik op Open Downloads (of op de melding "Update klaar om te installeren"), tik op de nieuwe versie en kies Installeren. Na de update ruimt de app de download zelf op.',
+  };
+  /* Xiaomi/Redmi/POCO zetten "Zwevende meldingen" (de pop-up bovenin) standaard uit voor apps van buiten de Play Store.
+     De app mag dat niet zelf aanzetten: één tik naar de juiste instelling, de volgende update komt dan als pop-up */
+  function popupHint(el) {
+    if (!el || IOS || !Native || !Native.openUpdateChannel || !(Native.isXiaomi && Native.isXiaomi()) || el.parentNode.querySelector('.pophint')) return;
+    const b = document.createElement('button');
+    b.className = 'linkbtn pophint';
+    b.style.cssText = 'text-align:center;font-size:13px;border-bottom:0;margin-top:6px';
+    b.textContent = 'Geen pop-up gezien? Zet "Zwevende meldingen" aan bij Updates ›';
+    b.onclick = () => Native.openUpdateChannel();
+    el.insertAdjacentElement('afterend', b);
   }
   /* bij het openen van de app, en als je terugkomt in de app (dan is "herinner me over…" misschien voorbij) */
   /* ontwikkelaar: zelf kiezen welke versie (canary of gewoon) je installeert */
@@ -4516,7 +4092,7 @@
       all = list;
       const cur = appVer();
       const rows = (list || []).filter(r => !r.draft && (kind === 'canary' ? r.prerelease : !r.prerelease)).map(r => {
-        const asset = (r.assets || []).find(a => /\.apk$/i.test(a.name));
+        const asset = apkAsset(r.assets);
         const v = String(r.tag_name).replace(/^v/, ''), d = new Date(r.published_at);
         const mine = v === cur, older = cur && !mine && newer(cur, v);
         const state = mine ? 'je hebt deze' : older ? 'ouder: kan niet (Android staat terugzetten niet toe)' : '';
@@ -4529,7 +4105,7 @@
       m.querySelectorAll('[data-kind]').forEach(b => { b.onclick = () => { kind = b.dataset.kind; show(all); }; });
       m.querySelectorAll('[data-rel]:not([disabled])').forEach(b => {
         b.onclick = () => {
-          const r = all.find(x => String(x.tag_name).replace(/^v/, '') === b.dataset.rel), asset = r.assets.find(a => /\.apk$/i.test(a.name));
+          const r = all.find(x => String(x.tag_name).replace(/^v/, '') === b.dataset.rel), asset = apkAsset(r.assets);
           m.remove();
           updSheet({ v: b.dataset.rel, url: asset.browser_download_url, notes: r.body || '', size: asset.size });
         };
@@ -4542,14 +4118,13 @@
   }
 
   /* allereerste keer: is deze APK al verouderd, dan eerst bijwerken (zo krijgt iedereen die de app doorgestuurd krijgt
-     meteen de nieuwste). Zo nodig eerst toestemming geven om te installeren, daarna begint het bijwerken vanzelf */
+     meteen de nieuwste). Het bijwerken begint meteen: SideStore (iPhone) of de browser (Android) neemt het over */
   async function firstUpdate(next) {
-    let finished = false, back = null;
-    /* klaar (geen update, of "Nu niet"): niet meer luisteren, anders begint het bijwerken later alsnog vanzelf */
+    let finished = false;
+    /* klaar (geen update, of "Verder met deze versie"): niet meer luisteren */
     const go = () => {
       if (finished) return;
       finished = true;
-      if (back) document.removeEventListener('visibilitychange', back);
       if (window.__cpUpd === onUpd) window.__cpUpd = null;
       ls.set('cp:firstUpd', 1);
       m.remove();
@@ -4559,25 +4134,17 @@
     const m = document.createElement('div');
     m.className = 'modal upd';
     if (!canUpdate()) { ls.set('cp:firstUpd', 1); return next(); }
-    m.innerHTML = `<div class="sheet"><h3>Even kijken…</h3><p class="small muted">Is er al een nieuwere versie van W.S.P?</p><div class="spinner" style="margin:6px auto"></div></div>`;
+    m.innerHTML = `<div class="sheet"><h3>Even kijken…</h3><p class="small muted">Is er al een nieuwere versie van C.R.H?</p><div class="spinner" style="margin:6px auto"></div></div>`;
     app.appendChild(m);
     let u = null;
     try { u = await Promise.race([fetchRelease(), new Promise((_, bad) => setTimeout(() => bad(new Error('time-out')), 8000))]); } catch (e) {}
     if (!u || !newer(u.v, appVer())) return go();
     ls.set('cp:updFound', u);
-    const can = () => { try { return !Native.canInstall || Native.canInstall(); } catch (e) { return true; } };
-    let started = false, tries = 0;
+    let started = false;
     const draw = () => {
-      const perm = !can();
       m.innerHTML = `<div class="sheet"><h3>Eerst bijwerken</h3>
-        <p class="small" style="color:var(--fg2)">Je hebt versie ${esc(appVer())}, de nieuwste is <b>${esc(u.v)}</b>. ${IOS ? 'SideStore gaat zo open om hem bij te werken' : 'W.S.P werkt zichzelf nu eerst bij'}, dan heb je meteen alles wat nieuw is.</p>
-        ${perm ? `<p class="small" style="color:var(--fg2)">Daarvoor moet je één keer toestaan dat W.S.P <b>apps mag installeren</b> (alleen voor updates van W.S.P zelf):</p>
-          <ol class="small" style="margin:0;padding-left:18px;color:var(--fg2);display:grid;gap:6px"><li>Tik op <b>Instellen</b>.</li><li>Zet <b>Toestaan uit deze bron</b> aan.</li><li>Ga terug naar W.S.P, het bijwerken begint dan vanzelf.</li></ol>` : ''}
-        <div class="small" data-updmsg style="text-align:center;font-weight:700;color:var(--accent-text)"></div>
-        ${perm ? '<div class="row"><button class="btn" data-a="set" style="flex:1">Instellen</button></div>' : ''}<div data-stuck></div></div>`;
-      /* eerste keer bijwerken is verplicht: eerst lezen, dan instellen; alleen na 2 keer zonder resultaat een uitweg */
-      if (perm) readFirst(m.querySelector('[data-a=set]'), () => { tries++; Native.openInstallSettings(); });
-      if (tries >= 2) stuckLink(m, go);
+        <p class="small" style="color:var(--fg2)">Je hebt versie ${esc(appVer())}, de nieuwste is <b>${esc(u.v)}</b>. ${IOS ? 'SideStore gaat zo open om hem bij te werken' : 'Hij wordt zo gedownload; daarna tik je op de download en kies je Installeren'}, dan heb je meteen alles wat nieuw is.</p>
+        <div class="small" data-updmsg style="text-align:center;font-weight:700;color:var(--accent-text)"></div><div data-stuck></div></div>`;
     };
     const msg = t => { const el = m.querySelector('[data-updmsg]'); if (el) el.textContent = t; };
     /* opnieuw proberen of toch eerst met deze versie verder */
@@ -4597,39 +4164,28 @@
       started = true;
       draw();
       msg(IOS ? 'SideStore openen…' : 'Downloaden…');
+      if (!IOS) ls.set('cp:updDl', 1);
       Native.installUpdate(u.url);
     };
     onUpd = (st, pct) => {
       if (finished) return;
-      /* iPhone: SideStore neemt het over; daarna mag je verder (de update komt binnen als SideStore klaar is) */
-      if (st === 'sidestore' || st === 'browser') {
-        /* niet vanzelf opnieuw SideStore openen als je terugkomt (anders blijf je heen en weer springen):
-           zelf kiezen tussen nog eens proberen en verder met deze versie */
-        started = false;
-        handedOff = true;
-        msg(st === 'sidestore' ? 'Tik in SideStore op Installeren en open W.S.P daarna weer.' : 'SideStore niet gevonden: de download staat in Safari.');
-        const box = m.querySelector('[data-stuck]');
-        if (box) {
-          box.innerHTML = '<div class="row"><button class="btn ghost" data-a="on" style="flex:1">Verder met deze versie</button><button class="btn" data-a="again" style="flex:1">Opnieuw</button></div>';
-          box.querySelector('[data-a=on]').onclick = go;
-          box.querySelector('[data-a=again]').onclick = () => { started = false; start(); };
-        }
+      if (st === 'busy') { msg('Downloaden… ' + (pct || 0) + '%'); return; }
+      started = false;
+      if (!UPD_MSG[st]) { draw(); choices('Bijwerken mislukt. Controleer je internet.'); return; }
+      /* SideStore of de browser neemt het over: niet vanzelf opnieuw openen als je terugkomt,
+         zelf kiezen tussen nog eens proberen en verder met deze versie */
+      msg(UPD_MSG[st]);
+      if (st === 'ready') popupHint(m.querySelector('[data-updmsg]'));
+      const box = m.querySelector('[data-stuck]');
+      if (box) {
+        const dlBtn = st === 'ready' && Native && Native.openDownloads;
+        box.innerHTML = `<div class="row"><button class="btn ghost" data-a="on" style="flex:1">Verder met deze versie</button><button class="btn" data-a="again" style="flex:1">${dlBtn ? 'Open Downloads' : 'Opnieuw'}</button></div>`;
+        box.querySelector('[data-a=on]').onclick = go;
+        box.querySelector('[data-a=again]').onclick = dlBtn ? () => Native.openDownloads() : start;
       }
-      else if (st === 'busy') msg('Downloaden… ' + pct + '%');
-      /* het venster van Android kan wegvallen zonder antwoord (bijv. met de thuisknop): dan toch een uitweg */
-      else if (st === 'ask') { msg('Tik in het venster van Android op Updaten.'); setTimeout(() => { if (!finished && started) choices('Geen venster gezien of weggeklikt?'); }, 6000); }
-      else if (st === 'perm') { started = false; draw(); }
-      else { started = false; draw(); choices(st === 'cancel' ? 'Bijwerken geannuleerd.' : 'Bijwerken mislukt. Controleer je internet.'); }
     };
     window.__cpUpd = onUpd;
-    let handedOff = false; /* iPhone: al naar SideStore gestuurd */
-    back = () => {
-      if (document.hidden || finished || handedOff) return;
-      if (!started && can()) start();
-      else if (tries >= 2 && !started) stuckLink(m, go);
-    };
-    document.addEventListener('visibilitychange', back);
-    if (can()) start(); else draw();
+    start();
   }
 
   /* bij het openen: eerst rooster en cijfers laten laden (die gaan voor), dan pas naar een update kijken */
@@ -4649,7 +4205,13 @@
     /* 2.5.6 onthield de versie nog niet: had die al eens naar updates gekeken, dan kom je van een oudere versie */
     const last = ls.get('cp:lastVer', null) || (ls.get('cp:updCheck', 0) ? '0' : null);
     ls.set('cp:lastVer', cur);
+    /* bijgewerkt via de browser: de APK blijft in Downloads staan. De app mag die zelf niet weghalen (daar is weer
+       extra toestemming voor nodig, en dat wantrouwt Play Protect), dus één keer zeggen dat het kan */
+    let dl = !IOS && ls.get('cp:updDl', 0);
     if (!last || !newer(cur, last)) return;
+    ls.set('cp:updDl', 0);
+    /* door Android gedownload: de app mag die download zelf weghalen, dan is een tip niet nodig */
+    try { if (Native && Native.cleanupUpdate && Native.cleanupUpdate()) dl = false; } catch (e) {}
     const found = ls.get('cp:updFound', null), notes = found && found.v === cur ? found.notes : '';
     let tries = 0;
     const attempt = () => {
@@ -4658,6 +4220,7 @@
       w.className = 'tipwrap';
       w.innerHTML = `<div class="tipcard" role="dialog"><div class="tip-h"><span class="tip-i">✓</span><b>Bijgewerkt naar ${esc(cur)}</b></div>
         <p>De update is gelukt. Je cijfers, reminders en instellingen staan er nog.</p>
+        ${dl ? `<p class="small muted">Tip: de download (C.R.H-v${esc(cur)}.apk) heb je niet meer nodig. Je kunt hem verwijderen uit Downloads of Bestanden.</p>` : ''}
         ${notes ? `<div class="updnotes" hidden>${esc(notes).replace(/\n/g, '<br>')}</div>` : ''}
         <div class="tour-btns">${notes ? '<button class="btn ghost" data-a="new">Wat is er nieuw?</button>' : ''}<button class="btn" data-a="ok">Top</button></div></div>`;
       const close = () => { w.classList.add('out'); setTimeout(() => w.remove(), 220); };
@@ -4718,54 +4281,60 @@
     const left = S.devTimerEnd ? Math.max(0, Math.ceil((S.devTimerEnd - Date.now()) / 1000)) : null;
     return `<div class="card-box dev-box"><div class="setting-h">Ontwikkelaar</div>
       <div class="small muted">Testcijfers zijn weg zodra je de app sluit.</div>
-      <label class="lbl" style="display:block;margin-top:12px">Testcijfer</label>
+      <label class="toggle-row" style="padding:10px 0 4px"><span><b>Altijd open</b><small>${devAlways() ? 'aan: Ontwikkelaar staat altijd open zonder code, en je krijgt canary-updates' : 'uit: elke keer de code, en alleen canary als je dat hieronder aanzet'}. Alleen op deze telefoon.</small></span><input type="checkbox" data-a="devalways"${devAlways() ? ' checked' : ''}><i class="toggle"></i></label>
+      <label class="toggle-row" style="padding:4px 0"><span><b>Tikvlakken tonen</b><small>Rode rand = de knop, gestreept = het extra (onzichtbare) tikvlak. Alleen op deze telefoon.</small></span><input type="checkbox" data-a="showhit"${ls.get('cp:showHit', false) ? ' checked' : ''}><i class="toggle"></i></label>
+      <label class="lbl sec">Testcijfer</label>
       <div class="calc-row" style="margin-top:6px"><select data-dev="afk">${subs.map(s => `<option value="${esc(s[0])}"${s[0] === d.afk ? ' selected' : ''}>${esc(s[1])}</option>`).join('')}</select>
         <input type="text" inputmode="text" data-dev="val" value="${esc(d.val)}" placeholder="7.5"></div>
       <div class="seg" style="margin-top:8px">${[1, 2, 3, 4, 5].map(w => `<button class="${w === d.w ? 'on' : ''}" data-dw="${w}">${w}×</button>`).join('')}</div>
       <div class="seg" style="margin-top:8px">${[['Schriftelijke overhoring', 'SO'], ['Repetitie', 'REP'], ['Praktische opdracht', 'PO']].map(([k, l]) => `<button class="${k === d.soort ? 'on' : ''}" data-dt="${k}">${l}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px;justify-content:flex-start"><button class="btn" data-a="devadd">Toevoegen</button><button class="btn ghost" data-a="devrand">Willekeurig</button></div>
       ${S.dev.length ? `<div class="listrow" style="margin-top:8px"><span class="muted">${S.dev.length} testcijfer${S.dev.length === 1 ? '' : 's'} actief</span><button class="linkbtn" data-a="devclear" style="width:auto;padding:0;border:0">Wissen</button></div>` : ''}
-      <label class="lbl" style="display:block;margin-top:14px">Testmelding</label>
+      <label class="lbl sec">Testmelding</label>
       <div class="seg" style="margin-top:6px">${[['grades', 'Cijfer'], ['hw', 'Huiswerk'], ['rooster', 'Rooster']].map(([k, l]) => `<button class="${k === d.ntype ? 'on' : ''}" data-dn="${k}">${l}</button>`).join('')}</div>
       <div class="seg" style="margin-top:8px">${[[0, 'Nu'], [5, '5 s'], [10, '10 s'], [30, '30 s'], [60, '1 min'], [300, '5 min']].map(([k, l]) => `<button class="${k === d.delay ? 'on' : ''}" data-dd="${k}">${l}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px;justify-content:flex-start"><button class="btn" data-a="devnotify">Plan melding</button></div>
       <div class="small" data-devcount style="margin-top:8px;color:var(--accent);font-weight:700">${left != null ? (left > 0 ? `Melding over ${left} s… (je mag de app op de achtergrond zetten)` : '✓ Melding verstuurd') : ''}</div>
-      <label class="lbl" style="display:block;margin-top:14px">Nieuwe aantekening</label>
+      <label class="lbl sec">Nieuwe aantekening</label>
       <div class="small muted" style="margin-top:6px">Zet een testaantekening bij Absentie (vandaag, bij het gekozen vak hierboven), met het label NIEUW, en telt hem mee in de totalen. Niet opgeslagen: weg zodra je de app sluit.</div>
       <div class="seg wrap" style="margin-top:8px">${ABS_SOORT.map(k => `<button class="${(d.absSoort || ABS_SOORT[0]) === k ? 'on' : ''}" data-das="${k}">${k}</button>`).join('')}</div>
       ${(d.absSoort || ABS_SOORT[0]) === 'Te laat' ? `<div class="seg" style="margin-top:8px">${[[true, 'Geoorloofd'], [false, 'Ongeoorloofd']].map(([k, l]) => `<button class="${(d.absOk === true) === k ? 'on' : ''}" data-dao="${k}">${l}</button>`).join('')}</div>` : ''}
       <div class="seg" style="margin-top:8px">${[[0, 'Nu'], [5, '5 s'], [10, '10 s'], [30, '30 s'], [60, '1 min']].map(([k, l]) => `<button class="${(d.absDelay || 0) === k ? 'on' : ''}" data-dad="${k}">${l}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="devabs">Simuleer nieuwe aantekening</button></div>
       <div class="small" data-abscount style="margin-top:6px;color:var(--accent-text);font-weight:700"></div>
-      <label class="lbl" style="display:block;margin-top:14px">Huiswerk</label>
+      <label class="lbl sec">Huiswerk</label>
       <div class="small muted" style="margin-top:6px">Zet testhuiswerk bij het gekozen vak hierboven (morgen), met het label NIEUW en het rode getalletje bij Huiswerk. Niet opgeslagen: weg na vernieuwen of als je de app sluit.</div>
       <div class="seg" style="margin-top:8px">${[[false, 'Huiswerk'], [true, 'Toets']].map(([k, l]) => `<button class="${!!d.hwToets === k ? 'on' : ''}" data-dht="${k}">${l}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="devhw">Simuleer nieuw huiswerk</button></div>
-      <label class="lbl" style="display:block;margin-top:14px">Crash</label>
-      <div class="small muted" style="margin-top:6px">${IOS ? 'Stuurt meteen een testfoutmelding naar de developer.' : 'Start de app opnieuw met een testfoutmelding. Die wordt als test naar de developer gestuurd.'}</div>
+      <label class="lbl sec">Crash</label>
+      <div class="small muted" style="margin-top:6px">${IOS ? 'Stuurt meteen een testfoutmelding naar de developer.' : 'Start de app opnieuw met een testfoutmelding, zodat je het foutscherm ziet.'}</div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="devcrash">Simuleer crashmelding</button></div>
-      <label class="lbl" style="display:block;margin-top:14px">Dag en tijd</label>
+      <label class="lbl sec">Uitgelogd</label>
+      <div class="small muted" style="margin-top:6px">Doe alsof je bent uitgelogd bij school of bij Zermelo: je krijgt het venster om opnieuw in te loggen, en het vakje bovenaan Rooster en Huiswerk. Inloggen via dat vakje is echt.${S.schoolOut || S.zmNeedLogin ? ' <b style="color:var(--accent-text)">Nu uitgelogd bij ' + [S.schoolOut && 'school', S.zmNeedLogin && 'Zermelo'].filter(Boolean).join(' en ') + '.</b>' : ''}</div>
+      <div class="row" style="margin-top:8px;justify-content:flex-start;flex-wrap:wrap"><button class="btn" data-a="simoutschool">School</button><button class="btn" data-a="simoutzm">Zermelo</button>${S.schoolOut || S.zmNeedLogin ? '<button class="btn ghost" data-a="simoutstop">Stoppen</button>' : ''}</div>
+      <label class="lbl sec">Dag en tijd</label>
       <div class="small muted" style="margin-top:6px">Doe alsof het een andere dag en tijd is, om bijv. de les van nu, uitval of reminders te testen. Alleen in de app: meldingen volgen de echte tijd.</div>
       ${simOff ? `<div class="small" style="margin-top:6px;color:var(--accent-text);font-weight:700">Gesimuleerd: ${esc(niceDay(dayStart(now())))} ${pad(now().getHours())}:${pad(now().getMinutes())}</div>` : ''}
       <div class="two" style="margin-top:8px"><input class="inp" type="date" data-sim="d" value="${ymd(now())}"><input class="inp" type="time" data-sim="t" value="${pad(now().getHours())}:${pad(now().getMinutes())}"></div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="simtime">Simuleren</button>${simOff ? '<button class="btn ghost" data-a="realtime">Echte tijd</button>' : ''}</div>
-      <label class="lbl" style="display:block;margin-top:14px">Canary</label>
+      <label class="lbl sec">Canary</label>
       <div class="small muted" style="margin-top:6px">Test-versies (pre-releases op GitHub) krijgen, alleen op deze telefoon. Gewone gebruikers krijgen die niet.${appVer() && /canary|beta/.test(appVer()) ? ' Je hebt nu canary ' + esc(appVer()) + '.' : ''}</div>
-      <label class="toggle-row" style="padding:8px 0"><span><b>Canary-updates</b><small>${canaryOn() ? 'aan: je krijgt ook test-versies' : 'uit: alleen gewone versies'}</small></span><input type="checkbox" data-a="canary"${canaryOn() ? ' checked' : ''}><i class="toggle"></i></label>
+      <label class="toggle-row" style="padding:8px 0${devAlways() ? ';opacity:.55' : ''}"><span><b>Canary-updates</b><small>${devAlways() ? 'aan door "Altijd open" hierboven' : canaryOn() ? 'aan: je krijgt ook test-versies' : 'uit: alleen gewone versies'}</small></span><input type="checkbox" data-a="canary"${canaryOn() ? ' checked' : ''}${devAlways() ? ' disabled' : ''}><i class="toggle"></i></label>
       <div class="row" style="margin-top:4px;justify-content:flex-start"><button class="btn" data-a="canarynow">Installeer nieuwste canary</button><button class="btn ghost" data-a="canarypick">Kies een versie (normaal/canary)…</button></div>
-      <label class="lbl" style="display:block;margin-top:14px">Update</label>
+      <label class="lbl sec">Update</label>
       <div class="small muted" style="margin-top:6px">Toont het updatevenster met de nieuwste versie van GitHub, ook als je die al hebt (dan wordt dezelfde versie opnieuw geïnstalleerd).</div>
       <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="devupd">Simuleer update</button></div>
-      <label class="lbl" style="display:block;margin-top:14px">Nieuwe gebruiker</label>
+      <label class="lbl sec">Nieuwe gebruiker</label>
       ${ls.get('cp:simBackup', null) ? `<div class="small" style="margin-top:6px;color:var(--accent-text);font-weight:700">Simulatie actief</div>
         <div class="row" style="margin-top:8px;justify-content:flex-start"><button class="btn" data-a="simstop">Stoppen en alles terugzetten</button></div>`
         : `<div class="small muted" style="margin-top:6px">Doorloop de app alsof je hem net hebt gekregen: voorwaarden, thema kiezen, icoon, Zermelo koppelen, welkom en alle cijfers openen. Daarna kun je alles terugzetten.</div>
         <div class="row" style="margin-top:8px;justify-content:flex-start;flex-wrap:wrap"><button class="btn" data-a="simnew">Ingelogd blijven</button><button class="btn ghost" data-a="simnewlogin">Opnieuw inloggen</button></div>
         <div class="small muted" style="margin-top:6px"><b>Opnieuw inloggen</b> logt je ook uit bij school en Zermelo, zodat je het inloggen ook doorloopt. Je cijfers, rooster en Zermelo-koppeling komen terug zodra je weer inlogt en koppelt.</div>`}
-      <button class="linkbtn" data-a="devoff" style="border-bottom:0">Ontwikkelaar sluiten</button></div>`;
+      <button class="linkbtn" data-a="devoff" style="border-bottom:0">Ontwikkelaar sluiten</button>
+      ${IOS ? '' : '<div style="text-align:center;color:var(--muted);font-size:18px;padding:4px 0 2px">(:</div>'}</div>`;
   }
   /* "nieuwe gebruiker": de eerste-keer-instellingen tijdelijk wissen (met een reservekopie) en de app opnieuw starten */
-  const SIM_KEYS = ['cp:terms', 'cp:termsDate', 'cp:iconPicked', 'cp:themePicked', 'cp:zmAsked', 'cijferpacks:v1', 'cp:hwdone', 'cp:tabs', 'cp:tips', 'cp:tourDone', 'cp:installAsked', 'cp:batteryAsked', 'cp:refreshAsked', 'cp:firstUpd', 'cp:widgetAsked'];
+  const SIM_KEYS = ['cp:terms', 'cp:termsDate', 'cp:iconPicked', 'cp:themePicked', 'cp:zmAsked', 'cijferpacks:v1', 'cp:hwdone', 'cp:tabs', 'cp:tips', 'cp:tourDone', 'cp:batteryAsked', 'cp:refreshAsked', 'cp:firstUpd', 'cp:widgetAsked'];
   /* uitloggen: een andere leerling heeft ander rooster en andere cijfers: alles van deze leerling weg, ook Zermelo.
      Thema, icoon en geluid blijven staan (die horen bij de telefoon) */
   function logoutAll() {
@@ -4859,14 +4428,32 @@
       const card = main.querySelector('[data-abs]');
       if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+    /* simuleer uitgelogd: zet dezelfde vlaggen als bij echt uitloggen en toon het venster (ook in de preview) */
+    const outSchool = main.querySelector('[data-a=simoutschool]'), outZm = main.querySelector('[data-a=simoutzm]'), outStop = main.querySelector('[data-a=simoutstop]');
+    if (outSchool) outSchool.onclick = () => { S.schoolOut = true; S.loginAsked = false; promptLogin(true); redraw(); };
+    if (outZm) outZm.onclick = () => {
+      if (!zm && !DEMO) { toast('Koppel eerst Zermelo'); return; }
+      S.zmNeedLogin = true; S.zmLoginAsked = false; promptZermelo(true); redraw();
+    };
+    if (outStop) outStop.onclick = () => { S.schoolOut = false; S.zmNeedLogin = false; S.loginAsked = false; S.zmLoginAsked = false; S.rooster = {}; sh.querySelectorAll('.modal.relog, .modal.relogzm').forEach(x => x.remove()); toast('Weer ingelogd (simulatie gestopt)'); redraw(); };
     const dc = main.querySelector('[data-a=devcrash]');
     if (dc) dc.onclick = () => { if (Native && Native.devCrash) { Native.devCrash(); if (IOS) toast('Testfoutmelding verstuurd naar de developer'); } else toast('Testcrash (alleen in de app)'); };
     const sn = main.querySelector('[data-a=simnew]');
     if (sn) sn.onclick = () => simNewUser(false);
     const snl = main.querySelector('[data-a=simnewlogin]');
     if (snl) snl.onclick = () => simNewUser(true);
+    const shb = main.querySelector('[data-a=showhit]');
+    shb.onchange = () => { ls.set('cp:showHit', shb.checked); app.classList.toggle('showhit', shb.checked); };
+    const da = main.querySelector('[data-a=devalways]');
+    da.onchange = () => {
+      ls.set('cp:devAlways', da.checked);
+      /* canary verandert mee: opnieuw kijken welke versie de nieuwste is */
+      resetUpdCheck();
+      toast(da.checked ? 'Ontwikkelaar staat nu altijd open, met canary-updates' : 'Altijd open uit: de volgende keer weer met de code');
+      redraw();
+    };
     const cn = main.querySelector('[data-a=canary]');
-    cn.onchange = () => { ls.set('cp:canary', cn.checked); ls.set('cp:updFound', null); ls.set('cp:updCheck', 0); toast(cn.checked ? 'Canary-updates aan' : 'Canary-updates uit'); redraw(); };
+    cn.onchange = () => { ls.set('cp:canary', cn.checked); resetUpdCheck(); toast(cn.checked ? 'Canary-updates aan' : 'Canary-updates uit'); redraw(); };
     main.querySelector('[data-a=canarynow]').onclick = () => {
       if (!canaryOn()) { ls.set('cp:canary', true); redraw(); }
       ls.set('cp:updFound', null);
@@ -4905,7 +4492,11 @@
       }, 500);
       redraw();
     };
-    main.querySelector('[data-a=devoff]').onclick = () => { S.devOn = false; redraw(); };
+    main.querySelector('[data-a=devoff]').onclick = () => {
+      S.devOn = false;
+      if (devAlways()) toast('Dicht tot je de app opnieuw opent (Altijd open staat aan)');
+      redraw();
+    };
   }
 
   const SWATCHES = ['#ffd34d', '#ff4d6d', '#ff8a3d', '#3ddc97', '#4da3ff', '#b07cff', '#ffffff'];
@@ -4919,7 +4510,7 @@
       const absItems = (S.devAbs || []).concat(S.abs.items).filter(i => !hidden.includes(absKey(i)));
       return `<div class="card-box" data-abs><div class="setting-h">Absentie dit schooljaar</div>
         ${absTotals().map(t => `<div class="listrow"><span class="muted">${esc(t.label)}</span><b>${esc(t.value)}</b></div>`).join('') || '<div class="muted small">Geen gegevens.</div>'}
-        ${absItems.length ? `<div class="setting-h" style="margin-top:12px">Deze week</div>${absItems.map(i => `<div class="listrow"><span>${i.dev || absIsNew(i) ? '<span class="tag red">NIEUW</span> ' : ''}${i.date ? esc(niceDay(new Date(i.date))) : ''} · ${esc(i.uur)}e uur ${esc(i.vak)}</span><b${/ongeoorloofd/i.test(i.absentie) ? ' style="color:var(--red)"' : ''}>${esc(i.absentie)}</b><button class="absx" data-absx="${esc(absKey(i))}" aria-label="Wegklikken">×</button></div>`).join('')}` : ''}
+        ${absItems.length ? `<div class="setting-h sub">Deze week</div>${absItems.map(i => `<div class="listrow"><span>${i.dev || absIsNew(i) ? '<span class="tag red">NIEUW</span> ' : ''}${i.date ? esc(niceDay(new Date(i.date))) : ''} · ${esc(i.uur)}e uur ${esc(i.vak)}</span><b${/ongeoorloofd/i.test(i.absentie) ? ' style="color:var(--red)"' : ''}>${esc(i.absentie)}</b><button class="absx" data-absx="${esc(absKey(i))}" aria-label="Wegklikken">×</button></div>`).join('')}` : ''}
       </div>`;
     };
     const toggle = (key, title, sub, on) => `<label class="toggle-row" style="padding:8px 0"><span><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>
@@ -4941,7 +4532,7 @@
           <button class="linkbtn" data-a="ownadd" style="border-bottom:0;padding-bottom:0">+ Zet reminder</button>
         </div>
         ${ns ? `<div class="card-box"><div class="setting-h">Meldingen</div>
-          ${ns.allowed ? '' : `<div class="err" style="margin-bottom:8px">${IOS ? 'Meldingen staan uit voor W.S.P. Zet ze aan bij Instellingen → W.S.P → Berichtgeving.' : 'Meldingen staan uit in de Android-instellingen voor deze app.'}</div>`}
+          ${ns.allowed ? '' : `<div class="err" style="margin-bottom:8px">${IOS ? 'Meldingen staan uit voor C.R.H. Zet ze aan bij Instellingen → C.R.H → Berichtgeving.' : 'Meldingen staan uit in de Android-instellingen voor deze app.'}</div>`}
           <button class="setrow" data-a="remind"><span class="sr-t"><b>Herinneringen instellen</b><small>Standaard: ${esc(ruleLabel(hwRules.def))}</small></span><span class="go">›</span></button>
           ${modeRow('hw', 'Huiswerk', 'Nieuw huiswerk en nieuwe aantekeningen', ns.n_hw_mode)}
           ${modeRow('rooster', 'Rooster', zm ? 'Uitval en lokaalwijzigingen (Zermelo)' : 'Koppel Zermelo voor betrouwbare uitval', ns.n_rooster_mode)}
@@ -4949,15 +4540,15 @@
           ${modeRow('own', 'Eigen reminders', 'Reminders die je zelf zet bij Meer', ns.n_own_mode || 'geluid')}
           ${modeRow('grades', 'Nieuwe cijfers', '', ns.n_grades_mode)}
           ${toggle('n_showgrade', 'Cijfer laten zien in melding', 'Uit: alleen het vak, het cijfer zie je bij het unboxen', ns.n_showgrade)}
-          ${Native && Native.openNotifSettings ? `<button class="setrow" data-a="nsys" style="padding-top:10px;border-bottom:0"><span class="sr-t"><b>Melding op je scherm laten zien</b><small>${IOS ? 'In Instellingen → W.S.P → Berichtgeving: zet Toegangsscherm en Banners aan' : 'Xiaomi/Redmi: zet "Zwevende meldingen" en "Vergrendelscherm" aan voor W.S.P'}</small></span><span class="go">›</span></button>` : ''}
+          ${Native && Native.openNotifSettings ? `<button class="setrow" data-a="nsys" style="padding-top:10px;border-bottom:0"><span class="sr-t"><b>Melding op je scherm laten zien</b><small>${IOS ? 'In Instellingen → C.R.H → Berichtgeving: zet Toegangsscherm en Banners aan' : 'Xiaomi/Redmi: zet "Zwevende meldingen" en "Vergrendelscherm" aan voor C.R.H'}</small></span><span class="go">›</span></button>` : ''}
         </div>` : ''}
         <div class="card-box"><div class="setting-h">Zermelo</div>
           ${zm ? `<div class="listrow"><span class="muted">Gekoppeld met</span><b>${esc(zm.school)}${zm.sso ? ' · schoolaccount' : ''}</b></div><button class="linkbtn red" data-a="zmoff" style="border-bottom:0">Ontkoppelen</button>`
             : `<p class="small muted">Koppel Zermelo voor je actuele rooster met uitval.</p><button class="linkbtn" data-a="zmon" style="border-bottom:0">Zermelo koppelen ›</button>`}
         </div>
         ${zm || DEMO ? `<div class="card-box"><div class="setting-h">Rooster van iemand anders</div>
-          <p class="small muted">Typ het leerlingnummer. Werkt alleen als je school dat in Zermelo toestaat.</p>
-          <div class="row" style="flex-wrap:nowrap;margin-top:8px"><input class="inp" id="zm-find" inputmode="numeric" placeholder="Bijv. 123456" autocomplete="off" style="flex:1"><button class="btn" data-a="zmfind">Zoek</button></div>
+          <p class="small muted">Zoek op klas (bijv. h2c), docentcode (bijv. stl) of leerlingnummer, zoals bij Alle roosters in Zermelo. Werkt alleen als je school dat in Zermelo toestaat.</p>
+          <div class="row" style="flex-wrap:nowrap;margin-top:8px"><input class="inp" id="zm-find" placeholder="Bijv. h2c, stl of 123456" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1"><button class="btn" data-a="zmfind">Zoek</button></div>
           <div data-zmfound></div></div>` : ''}
         <div class="card-box"><div class="setting-h">Instellingen</div>
           <button class="setrow" data-a="themes"><span class="sr-pic" style="--pic:linear-gradient(135deg, ${theme === 'light' ? '#f3f1ec' : '#0d0c0a'} 50%, ${accent} 50%)"></span>
@@ -4966,7 +4557,7 @@
           ${ns && ns.n_mob_r_mode ? `<button class="setrow" data-a="data" style="padding-top:12px"><span class="sr-t"><b>Datagebruik</b><small>Hoe vaak de app kijkt op wifi en op 4G/5G, met een schatting</small></span><span class="go">›</span></button>` : ''}
           <button class="setrow" data-a="tabs" style="padding-top:12px"><span class="sr-t"><b>Tabbalk</b><small>${visibleTabs().map(k => TABS.find(t => t.k === k).label).join(' · ')}</small></span><span class="go">›</span></button>
           ${IOS ? `<button class="setrow" data-a="sidestore" style="padding-top:12px"><span class="sr-t"><b>Automatisch vernieuwen</b><small>${expiryText()}</small></span><span class="go">›</span></button>` : ''}
-          <div class="setting-h" style="margin:16px 0 10px;font-size:15px">Geluid bij cijfers</div>
+          <div class="setting-h sub" style="font-size:15px">Geluid bij cijfers</div>
           <div class="seg">${[[true, 'Aan'], [false, 'Uit']].map(([k, l]) => `<button class="${soundOn === k ? 'on' : ''}" data-snd2="${k}">${l}</button>`).join('')}</div>
           ${soundOn ? `<div class="vol"><span aria-hidden="true">🔈</span><input type="range" min="0.05" max="1" step="0.05" value="${volume}" id="snd-vol" aria-label="Volume"><b id="snd-vol-v">${Math.round(volume * 100)}%</b></div>
           <div class="row" style="margin-top:8px"><button class="btn ghost" data-try="happy">▶ Voldoende</button><button class="btn ghost" data-try="sad">▶ Bo-womp</button></div>` : ''}
@@ -4978,17 +4569,9 @@
           <button class="linkbtn" data-a="portal">Portaal openen in browser</button>
           <button class="linkbtn red" data-a="logout">Uitloggen</button>
         </div>
-        <div class="card-box"><div class="setting-h">Over W.S.P${MUSIC ? ' <span class="tag">MUSIC EDITION</span>' : ''}</div>
-          <div class="logos"><img src="${ASSET(logoFile('mark.png'))}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
-          <p class="small muted" style="margin-top:10px">W.S.P is een onofficiële app. Hij is niet gemaakt door of namens je school${MUSIC ? ', Zermelo of YouTube' : ' of Zermelo'}. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
-          ${MUSIC ? `<div class="setting-h" style="margin-top:14px">Gemaakt door en met</div>
-          <div class="listrow"><span class="muted">W.S.P en Music Edition</span><b>gemaakt door een leerling</b></div>
-          <div class="listrow"><span class="muted">Muziekspeler</span><b>met Metrolist</b></div>
-          <div class="listrow"><span class="muted">Metrolist</span><b>Mo Agamy en bijdragers</b></div>
-          <div class="listrow"><span class="muted">Gebaseerd op</span><b>InnerTune · OuterTune</b></div>
-          <div class="listrow"><span class="muted">Muziek</span><b>via YouTube Music</b></div>
-          <div class="listrow"><span class="muted">Licentie</span><b>GPL-3.0 (open source)</b></div>
-          <p class="small muted" style="margin-top:8px">Dank aan iedereen die aan Metrolist, InnerTune en OuterTune heeft gewerkt. W.S.P is niet verbonden aan YouTube, Google of Metrolist Group.</p>` : ''}
+        <div class="card-box"><div class="setting-h">Over C.R.H</div>
+          <div class="logos"><img src="${ASSET('mark.png')}" alt="C.R.H"><img src="${ASSET('zermelo.svg')}" alt="Zermelo"></div>
+          <p class="small muted" style="margin-top:10px">C.R.H is een onofficiële app. Hij is niet gemaakt door of namens je school of Zermelo. Gegevens komen van het leerlingportaal en Zermelo, met jouw eigen inlog.</p>
           ${canUpdate() ? `<button class="linkbtn" data-a="upd">Zoek naar updates <span class="muted" style="font-weight:500">· je hebt versie ${esc(appVer())}</span></button>` : ''}
           <button class="linkbtn" data-a="terms" style="border-bottom:0;padding-bottom:0">Voorwaarden en privacy bekijken</button>
         </div>
@@ -5056,13 +4639,32 @@
       const zf = main.querySelector('[data-a=zmfind]');
       if (zf) {
         const inp = main.querySelector('#zm-find'), out = main.querySelector('[data-zmfound]');
-        /* alleen op leerlingnummer (niet op naam) */
-        const search = () => {
-          const q = inp.value.trim();
+        /* zoeken zoals Alle roosters in Zermelo: een leerlingnummer opent meteen; een klas geeft de leerlingnummers van
+           die klas om uit te kiezen; een docentcode of achternaam geeft de docenten */
+        const pill = (u, label, name) => `<button class="btn ghost" data-zmu="${esc(u)}" data-zmn="${esc(name)}" style="padding:10px 6px;font-size:14px">${esc(label)}</button>`;
+        const grid = h => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:8px">${h}</div>`;
+        let searchNo = 0;
+        const search = async () => {
+          /* raw: met spaties (voor namen als "van der Steen"); q: zonder spaties (klas, code, nummer) */
+          const raw = inp.value.trim().toLowerCase().replace(/\s+/g, ' '), q = raw.replace(/ /g, '');
           if (!q) return;
-          if (!/^\d{3,}$/.test(q)) { out.innerHTML = '<p class="small" style="margin-top:8px;color:var(--red)">Typ een leerlingnummer (alleen cijfers).</p>'; return; }
-          out.innerHTML = '';
-          otherRooster(q, 'Leerling ' + q);
+          const no = ++searchNo; /* alleen de laatste zoekopdracht mag de lijst tekenen */
+          if (/^\d{3,}$/.test(q)) { out.innerHTML = ''; otherRooster(q, 'Leerling ' + q); return; }
+          out.innerHTML = '<div class="spinner" style="margin:12px auto"></div>';
+          let dir;
+          try { dir = await zmDirectory(); } catch (e) { if (no === searchNo) out.innerHTML = `<div style="margin-top:8px">${errBox(e)}</div>`; return; }
+          if (no !== searchNo) return;
+          const inKlas = dir.students.filter(s => s.klas === q).sort((a, b) => a.nr.localeCompare(b.nr, 'nl', { numeric: true }));
+          const klassen = inKlas.length ? [] : [...new Set(dir.students.map(s => s.klas))].filter(k => k.startsWith(q)).sort().slice(0, 18);
+          const nameHit = t => { const n = t.name.toLowerCase(); return n.includes(raw) || n.replace(/\s+/g, '').includes(q); };
+          const docs = dir.teachers.filter(t => t.code === q || (q.length >= 2 && (t.code.startsWith(q) || nameHit(t)))).slice(0, 12);
+          let h = '';
+          if (inKlas.length) h += `<div class="setting-h sub">Klas ${esc(q.toUpperCase())} · ${inKlas.length} leerlingen</div>` + grid(inKlas.map(s => pill(s.nr, s.nr, 'Leerling ' + s.nr + ' · ' + s.klas.toUpperCase())).join(''));
+          if (klassen.length) h += `<div class="setting-h sub">Klassen</div>` + grid(klassen.map(k => `<button class="btn ghost" data-zmklas="${esc(k)}" style="padding:10px 6px;font-size:14px">${esc(k.toUpperCase())}</button>`).join(''));
+          if (docs.length) h += `<div class="setting-h sub">Docenten</div>` + docs.map(t => `<button class="linkbtn" data-zmu="${esc(t.code)}" data-zmn="${esc(t.name + ' (' + t.code.toUpperCase() + ')')}">${esc(t.code.toUpperCase())} · ${esc(t.name)} ›</button>`).join('');
+          out.innerHTML = h || '<p class="small muted" style="margin-top:8px">Niets gevonden. Typ een klas (bijv. h2c), een docentcode of een leerlingnummer.</p>';
+          out.querySelectorAll('[data-zmu]').forEach(b => { b.onclick = () => otherRooster(b.dataset.zmu, b.dataset.zmn); });
+          out.querySelectorAll('[data-zmklas]').forEach(b => { b.onclick = () => { inp.value = b.dataset.zmklas; search(); }; });
         };
         zf.onclick = search;
         inp.onkeydown = e => { if (e.key === 'Enter') search(); };
@@ -5095,7 +4697,6 @@
 
   /* ---------- terugknop (Android) ---------- */
   window.__cpBack = function () {
-    if (MUSIC && musicBack()) return true; /* muziek: eerst één stap terug binnen de muziektab */
     const tm = sh.querySelector('.terms');
     if (tm) { if (ls.get('cp:terms', 0) === TERMS_VERSION) { tm.remove(); return true; } return false; }
     const pn = sh.querySelector('.panel');
@@ -5104,11 +4705,12 @@
     if (ov) { const nx = ov.querySelector('.ub-next:not([hidden])'); if (nx) nx.click(); return true; }
     const m = sh.querySelector('.modal');
     if (m) { m.remove(); return true; }
-    /* een stap terug: het tabblad van hiervoor (dat er nog moet zijn); is er geen, dan eerst naar het rooster */
+    /* een stap terug: het tabblad van hiervoor (dat er nog moet zijn); is er geen, dan eerst naar het rooster.
+       Pas als ook dat niet kan, sluit de app (MainActivity doet dan finish()) */
     const vis = visibleTabs();
     while (tabHist.length) {
       const prev = tabHist.pop();
-      if (prev !== S.tab && vis.includes(prev)) { go(prev, true); return true; }
+      if (vis.includes(prev)) { go(prev, true); return true; }
     }
     if (S.tab !== 'rooster' && vis.includes('rooster')) { go('rooster', true); return true; }
     return false;
@@ -5298,6 +4900,11 @@
       const key = S.rMonday.getTime();
       if (S.rooster[key] && !sh.querySelector('.modal, .ov')) renderRooster();
       refreshWeek('r', key, S.rMonday);
+    }
+    /* terug in de app op Huiswerk: is het al even oud, dan stil het nieuwste huiswerk ophalen */
+    if (S.tab === 'huiswerk') {
+      const key = S.hwMonday.getTime();
+      if (S.hw[key] && stale('hw', key) && !recentlyFailed('hw', key) && hwAllowed()) refreshWeek('hw', key, S.hwMonday).then(updateNav);
     }
   });
   setInterval(() => {

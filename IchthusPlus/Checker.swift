@@ -161,7 +161,7 @@ enum Checker {
         if fresh.count == 1 {
             let g = fresh[0]
             title = show ? "\(g.vak): \(g.grade)" : "Nieuw cijfer voor \(g.vak)"
-            text = show ? "Bekijk het in W.S.P." : "Tik om je cijfer te onthullen."
+            text = show ? "Bekijk het in C.R.H." : "Tik om je cijfer te onthullen."
         } else {
             title = "\(fresh.count) nieuwe cijfers"
             text = join(unique(fresh.map { show ? "\($0.vak) \($0.grade)" : $0.vak })) + ". Tik om ze te onthullen."

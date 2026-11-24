@@ -7,8 +7,8 @@ options:
     iOS: "15.0"
 settings:
   base:
-    MARKETING_VERSION: "2.7.6"
-    CURRENT_PROJECT_VERSION: "13"
+    MARKETING_VERSION: "2.7.9"
+    CURRENT_PROJECT_VERSION: "14"
     TARGETED_DEVICE_FAMILY: "1"
     SWIFT_VERSION: "5.0"
     # niet ondertekend bouwen: SideStore ondertekent de app zelf met je eigen Apple ID
@@ -33,7 +33,7 @@ targets:
     info:
       path: IchthusPlus/Info.plist
       properties:
-        CFBundleDisplayName: W.S.P
+        CFBundleDisplayName: C.R.H
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
@@ -71,7 +71,7 @@ targets:
     info:
       path: IchthusWidget/Info.plist
       properties:
-        CFBundleDisplayName: W.S.P
+        CFBundleDisplayName: C.R.H
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:

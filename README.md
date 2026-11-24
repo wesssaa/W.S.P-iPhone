@@ -1,12 +1,12 @@
-# W.S.P voor iPhone
+# C.R.H voor iPhone
 
 **Je cijfers, rooster en huiswerk van school in één overzichtelijke app, en nieuwe cijfers open je als een pakje.**
 
-W.S.P is een onofficiële app van een leerling. Hij staat niet in de App Store, maar je kunt hem **gratis** op je iPhone zetten met **SideStore**. Dat kost één keer ongeveer 20 minuten; daarna heb je je computer niet meer nodig.
+C.R.H is een onofficiële app van een leerling. Hij staat niet in de App Store, maar je kunt hem **gratis** op je iPhone zetten met **SideStore**. Dat kost één keer ongeveer 20 minuten; daarna heb je je computer niet meer nodig.
 
-**[⬇ Download W.S.P (WSP.ipa)](https://github.com/wesssaa/W.S.P-iPhone/releases/latest/download/WSP.ipa)**
+**[⬇ Download C.R.H (WSP.ipa)](https://github.com/wesssaa/W.S.P-iPhone/releases/latest/download/WSP.ipa)**
 
-> Heb je Android? Kijk dan bij [W.S.P voor Android](https://github.com/wesssaa/W.S.P).
+> Heb je Android? Kijk dan bij [C.R.H voor Android](https://github.com/wesssaa/W.S.P).
 
 ---
 
@@ -58,12 +58,12 @@ Dat komt vaker voor: iloader is een onbekend programma dat met je iPhone praat, 
 
 Kom je ergens niet uit? De officiële uitleg staat op **[docs.sidestore.io](https://docs.sidestore.io/docs/installation/prerequisites)**.
 
-### Stap 4 · W.S.P installeren
+### Stap 4 · C.R.H installeren
 
 1. Open op je iPhone in Safari: **[WSP.ipa downloaden](https://github.com/wesssaa/W.S.P-iPhone/releases/latest/download/WSP.ipa)** en kies **Download**.
 2. Open **SideStore → My Apps** en tik linksboven op **+**.
-3. Kies **WSP.ipa** (bij Downloads in Bestanden). Na een paar seconden staat W.S.P op je beginscherm.
-4. Open W.S.P en log in met je schoolaccount. De app loopt de eerste stappen met je door.
+3. Kies **WSP.ipa** (bij Downloads in Bestanden). Na een paar seconden staat C.R.H op je beginscherm.
+4. Open C.R.H en log in met je schoolaccount. De app loopt de eerste stappen met je door.
 
 ### Stap 5 · Automatisch vernieuwen (verplicht)
 
@@ -73,18 +73,18 @@ Met een gratis Apple ID werkt een app 7 dagen; daarna moet SideStore hem vernieu
 2. **02:00**, Wekelijks, twee dagen aanvinken (bijv. maandag en donderdag) → **Voer direct uit** → Volgende
 3. Zoek **SideStore** → **Refresh All Apps** → **Gereed**
 
-Je telefoon moet om 02:00 aan staan, internet hebben en LocalDevVPN moet aan staan. In W.S.P zie je bij **Meer → Automatisch vernieuwen** hoeveel dagen hij nog werkt.
+Je telefoon moet om 02:00 aan staan, internet hebben en LocalDevVPN moet aan staan. In C.R.H zie je bij **Meer → Automatisch vernieuwen** hoeveel dagen hij nog werkt.
 
 ## Updates
 
-W.S.P kijkt zelf of er een nieuwe versie is. Is die er, dan zie je **Nieuwe versie**: tik op **Nu bijwerken**, dan opent SideStore en tik je op **Installeren**. Je cijfers, reminders en instellingen blijven staan.
+C.R.H kijkt zelf of er een nieuwe versie is. Is die er, dan zie je **Nieuwe versie**: tik op **Nu bijwerken**, dan opent SideStore en tik je op **Installeren**. Je cijfers, reminders en instellingen blijven staan.
 
 ## Problemen?
 
-- **W.S.P opent niet meer** – de 7 dagen zijn om. Zet LocalDevVPN aan, open SideStore → My Apps en tik op het dagen-getal naast W.S.P.
+- **C.R.H opent niet meer** – de 7 dagen zijn om. Zet LocalDevVPN aan, open SideStore → My Apps en tik op het dagen-getal naast C.R.H.
 - **SideStore zegt iets over een "pairing file"** – dat gebeurt soms na een iOS-update. Doe stap 3 dan nog een keer met iloader.
-- **"Maximum number of apps"** – met een gratis Apple ID kun je maar 3 zelf geïnstalleerde apps tegelijk hebben (SideStore telt mee). Daarnaast mag je per week maar een paar nieuwe app-ID's aanmaken; W.S.P gebruikt er twee (de app en de widget).
-- **Geen meldingen** – Instellingen → W.S.P → Berichtgeving → aanzetten. iOS bepaalt zelf hoe vaak de app op de achtergrond mag kijken (meestal een paar keer per dag).
+- **"Maximum number of apps"** – met een gratis Apple ID kun je maar 3 zelf geïnstalleerde apps tegelijk hebben (SideStore telt mee). Daarnaast mag je per week maar een paar nieuwe app-ID's aanmaken; C.R.H gebruikt er twee (de app en de widget).
+- **Geen meldingen** – Instellingen → C.R.H → Berichtgeving → aanzetten. iOS bepaalt zelf hoe vaak de app op de achtergrond mag kijken (meestal een paar keer per dag).
 
 ## Wat zit erin
 
@@ -95,11 +95,11 @@ Hetzelfde als de Android-app: cijfers unboxen, alle cijfers per vak met "Wat moe
 - Je logt in via de gewone schoolinlog (Microsoft). De app ziet en bewaart je wachtwoord niet. Op de inlogpagina verbergt hij alleen het logo van school en zet hij een algemene voorbeeldtekst in het e-mailveld.
 - Je cijfers, rooster, huiswerk en reminders blijven alleen op je eigen iPhone.
 - Loopt de app vast, dan gaat de technische foutmelding de volgende keer dat je hem opent automatisch naar de ontwikkelaar (app-versie, iPhone-model en de fout zelf; geen cijfers of inlog).
-- Geen advertenties, geen trackers. SideStore en iloader zijn programma's van anderen; W.S.P krijgt daar niks van te zien.
+- Geen advertenties, geen trackers. SideStore en iloader zijn programma's van anderen; C.R.H krijgt daar niks van te zien.
 
 ## Let op
 
-W.S.P is een persoonlijk project van een leerling. De app is niet gemaakt door of namens je school of Zermelo, staat niet in de App Store en is niet door Apple gecontroleerd. Gebruik is op eigen risico; controleer belangrijke dingen altijd in het leerlingportaal of Zermelo.
+C.R.H is een persoonlijk project van een leerling. De app is niet gemaakt door of namens je school of Zermelo, staat niet in de App Store en is niet door Apple gecontroleerd. Gebruik is op eigen risico; controleer belangrijke dingen altijd in het leerlingportaal of Zermelo.
 
 ---
 

@@ -61,5 +61,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" WSP.ipa --title "W.S.P iPhone $V" \
+          gh release create "$GITHUB_REF_NAME" WSP.ipa --title "C.R.H iPhone $V" \
             --notes "Installeren via SideStore: My Apps, plus, kies WSP.ipa. De uitleg staat op de hoofdpagina."
